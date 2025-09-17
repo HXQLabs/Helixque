@@ -2,6 +2,24 @@
 
 Thank you for your interest in contributing to Helixque! This document provides guidelines for contributing to the project.
 
+---
+
+## ⭐ Before You Start
+
+1. **Starring the repository is mandatory** before contributing.  
+   This helps the project grow and shows your support.  
+
+2. **Join our Discord server** for discussions, questions, and faster PR approvals:  
+   👉 [Join the Discord Server](https://discord.gg/UJfWXRYe)  
+
+   ⚠️ Please note: To quickly get your PRs reviewed and merged, you must be a member of our Discord server.  
+
+3. **Pull Request Policy on Discord**  
+   - Before raising a PR, **check the `#pull-request` channel** to ensure there isn’t already an open PR for the same issue.  
+   - If no one is working on it, go ahead and raise your PR and mention it in the channel.  
+
+---
+
 ## Getting Started
 
 1. Fork the repository
