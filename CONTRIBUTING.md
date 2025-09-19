@@ -35,7 +35,7 @@ Thank you for your interest in contributing to Helixque! This document provides 
    cd backend && npm install
    
    # Frontend  
-   cd ../my-app && npm install
+   cd ../frontend && npm install
    ```
 
 2. **Start development servers**:
@@ -44,7 +44,7 @@ Thank you for your interest in contributing to Helixque! This document provides 
    cd backend && npm run dev
    
    # Terminal 2 - Frontend
-   cd my-app && npm run dev
+   cd frontend && npm run dev
    ```
 
 ## Code Style

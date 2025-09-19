@@ -22,7 +22,7 @@ A professional real-time video chat application that connects people based on yo
 - **WebRTC Signaling**: Handles offer/answer/ICE candidate exchange
 - **Redis Support**: Scalable with Redis adapter for multi-instance deployments
 
-### Frontend (`/my-app`)
+### Frontend (`/frontend`)
 - **Next.js 15**: React framework with App Router
 - **TypeScript**: Type-safe frontend development
 - **TailwindCSS**: Utility-first styling
@@ -53,7 +53,7 @@ A professional real-time video chat application that connects people based on yo
 
 3. **Install frontend dependencies**
    ```bash
-   cd ../my-app
+   cd ../frontend
    npm install
    ```
 
@@ -68,7 +68,7 @@ A professional real-time video chat application that connects people based on yo
 
 2. **Start the frontend development server**
    ```bash
-   cd my-app
+   cd frontend
    npm run dev
    ```
    Frontend will start on `http://localhost:3000` (or next available port)
@@ -87,7 +87,7 @@ A professional real-time video chat application that connects people based on yo
 
 2. **Build the frontend**
    ```bash
-   cd my-app
+   cd frontend
    npm run build
    npm start
    ```
@@ -104,7 +104,7 @@ NODE_ENV=production
 REDIS_URL=redis://localhost:6379
 ```
 
-#### Frontend (`/my-app/.env.local`)
+#### Frontend (`/frontend/.env.local`)
 ```env
 NEXT_PUBLIC_BACKEND_URL=http://localhost:5001
 ```
@@ -145,7 +145,7 @@ Helixque/
 │   │   └── index.ts         # Express server and Socket.IO setup
 │   ├── package.json
 │   └── tsconfig.json
-├── my-app/                  # Next.js frontend
+├── frontend/                # Next.js frontend
 │   ├── app/
 │   │   ├── page.tsx         # Home page
 │   │   ├── match/           # Device setup and matching
@@ -240,7 +240,7 @@ cd backend
 npm test
 
 # Frontend tests (if available)  
-cd my-app
+cd frontend
 npm test
 ```
 
