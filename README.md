@@ -252,6 +252,8 @@ npm test
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+![Alt](https://repobeats.axiom.co/api/embed/241636b7674153b09f7a274fc31e67ceaf13859f.svg "Repobeats analytics image")
+
 ## 📝 License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
