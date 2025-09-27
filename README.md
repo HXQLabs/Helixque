@@ -1,289 +1,263 @@
 # Helixque
 
-A professional real-time video chat application that connects people based on your preferences. Built with modern web technologies for seamless peer-to-peer communication and professional networking.
+Helixque is a professional real-time video chat application that pairs people based on their preferences. It uses WebRTC for secure, low-latency, peer-to-peer media and Socket.IO for reliable signaling—delivering a modern experience for networking, interviews, and collaboration.
 
 ---
 
-## ⭐ Support & Contribution Rules
+## Table of contents
 
-- Please **star the repository** before contributing — PRs are **only accepted if you have starred the repo** ⭐  
-- Join our **Discord community** to connect with contributors, ask questions, and discuss features:  
-  👉 [Join our Discord](https://discord.gg/XC4YsUBg2)  
+- [Overview](#overview)
+- [Frontend](#frontend)
+- [Backend](#backend)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Socket.IO events](#socketio-events)
+- [Project structure](#project-structure)
+- [Core components](#core-components)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Contribution guidelines](#contribution-guidelines)
+- [License & acknowledgments](#license--acknowledgments)
 
 ---
 
-## ✨ Features
+## Overview
 
-- **Professional Video Chat**: Connect with people worldwide based on your preferences through video and audio
-- **Smart Matching**: Advanced matching system to connect you with relevant people
-- **Next/Skip Functionality**: Skip to the next person if the conversation isn't a good fit
-- **Device Management**: Easy camera and microphone controls
-- **Real-time Communication**: Instant pairing with available users
-- **Preference-based Connections**: Connect with people who match your interests and criteria
-- **Responsive Design**: Works across desktop and mobile devices
-- **WebRTC Technology**: Direct peer-to-peer connections for optimal performance
+Helixque provides preference-based pairing and a lightweight signaling server to facilitate direct WebRTC peer connections. The architecture separates responsibilities between a TypeScript backend (signaling, presence, matching) and a Next.js frontend (device setup, UI, and peer connection management).
 
-## 🏗️ Architecture
+## Frontend
 
-### Backend (`/backend`)
-- **Node.js + TypeScript**: Type-safe server implementation
-- **Socket.IO**: Real-time bidirectional communication
-- **Express**: Web framework for API endpoints
-- **WebRTC Signaling**: Handles offer/answer/ICE candidate exchange
-- **Redis Support**: Scalable with Redis adapter for multi-instance deployments
+Purpose
 
-### Frontend (`/frontend`)
-- **Next.js 15**: React framework with App Router
-- **TypeScript**: Type-safe frontend development
-- **TailwindCSS**: Utility-first styling
-- **WebRTC**: Direct peer-to-peer video/audio streaming
-- **Socket.IO Client**: Real-time communication with backend
+The frontend is a Next.js (App Router) application that manages device selection, user preferences, UI state, and the RTCPeerConnection lifecycle.
 
-## 🚀 Quick Start
+Key commands
 
-### Prerequisites
+- Install dependencies:
 
-- Node.js 18+ 
-- npm or yarn
-- Modern web browser with WebRTC support
+```bash
+cd frontend
+npm install
+```
+- Run development server:
 
-### Installation
+```bash
+cd frontend
+npm run dev
+```
+- Build (production):
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Omelge-exe/Helixque.git
-   cd Helixque
-   ```
-
-2. **Install backend dependencies**
-   ```bash
-   cd backend
-   npm install
-   ```
-
-3. **Install frontend dependencies**
-   ```bash
-   cd ../frontend
-   npm install
-   ```
-
-### Development
-
-1. **Start the backend server**
-   ```bash
-   cd backend
-   npm run dev
-   ```
-   Server will start on `http://localhost:5001` (or the port specified in PORT env var)
-
-2. **Start the frontend development server**
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-   Frontend will start on `http://localhost:3000` (or next available port)
-
-3. **Open your browser**
-   Navigate to the frontend URL and allow camera/microphone permissions when prompted.
-
-### Production Build
-
-1. **Build the backend**
-   ```bash
-   cd backend
-   npm run build
-   npm start
-   ```
-
-2. **Build the frontend**
-   ```bash
-   cd frontend
-   npm run build
-   npm start
-   ```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-#### Backend (`/backend/.env`)
-```env
-PORT=5001
-NODE_ENV=production
-# Optional: Redis configuration for scaling
-REDIS_URL=redis://localhost:6379
+```bash
+cd frontend
+npm run build
+npm start
 ```
 
-#### Frontend (`/frontend/.env.local`)
+Environment
+
+Create `/frontend/.env.local` with the following minimum entry:
+
 ```env
 NEXT_PUBLIC_BACKEND_URL=http://localhost:5001
 ```
 
-## 📡 Socket.IO Events
+Notes
 
-### Client → Server
+- Frontend requires HTTPS in production for getUserMedia to function correctly.
+- Device permissions (camera/microphone) must be granted by the user for media flows to start.
+
+## Backend
+
+Purpose
+
+The backend is a Node.js + TypeScript server that provides Socket.IO signaling, user presence, and a preference-based matchmaker. It is intentionally minimal so it can scale horizontally when paired with a Redis adapter.
+
+Key commands
+
+- Install dependencies:
+
+```bash
+cd backend
+npm install
+```
+- Run development server:
+
+```bash
+cd backend
+npm run dev
+```
+- Build (production):
+
+```bash
+cd backend
+npm run build
+npm start
+```
+
+Environment
+
+Copy `/backend/.env.example` to `/backend/.env` and set required values, for example:
+
+```env
+PORT=5001
+NODE_ENV=production
+CORS_ORIGINS=http://localhost:3000
+# Optional: REDIS_URL=redis://localhost:6379
+# Optional: STUN/TURN servers can be provided via environment variables
+```
+
+Notes
+
+- Use a TURN server in production to ensure media relay when direct P2P is not possible.
+- If deploying multiple backend instances, configure the Socket.IO Redis adapter and set `REDIS_URL`.
+
+## Quick start
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/Omelge-exe/Helixque.git
+cd Helixque
+```
+
+2. Install dependencies (both services):
+
+```bash
+cd backend && npm install
+cd ../frontend && npm install
+```
+
+3. Start development servers (two terminals):
+
+Terminal 1 — backend
+
+```bash
+cd backend
+npm run dev
+```
+
+Terminal 2 — frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open the frontend in your browser (http://localhost:3000 by default) and allow camera/microphone access.
+
+## Configuration
+
+Backend environment example is provided in `/backend/.env.example`. Key entries:
+
+- `PORT` — server port (default 5001)
+- `CORS_ORIGINS` — comma-separated frontend origins
+- `REDIS_URL` — Redis connection string (optional)
+- `STUN_URLS`, `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` — optional ICE servers
+
+Frontend environment key:
+
+- `NEXT_PUBLIC_BACKEND_URL` — public URL for the backend (use HTTPS in production)
+
+## Socket.IO events
+
+Client → Server
 
 | Event | Description | Payload |
-|-------|-------------|---------|
-| `offer` | WebRTC offer | `{sdp: string, roomId: string}` |
-| `answer` | WebRTC answer | `{sdp: string, roomId: string}` |
-| `add-ice-candidate` | ICE candidate | `{candidate: RTCIceCandidate, roomId: string, type: "sender"\|"receiver"}` |
-| `queue:next` | Skip to next person | - |
-| `queue:leave` | Leave the matching queue | - |
+|---|---:|---|
+| `offer` | Send WebRTC offer | `{ sdp: string, roomId: string }` |
+| `answer` | Send WebRTC answer | `{ sdp: string, roomId: string }` |
+| `add-ice-candidate` | Send ICE candidate | `{ candidate: RTCIceCandidate, roomId: string, type: 'sender' | 'receiver' }` |
+| `queue:next` | Request next match | — |
+| `queue:leave` | Leave queue / room | — |
 
-### Server → Client
+Server → Client
 
 | Event | Description | Payload |
-|-------|-------------|---------|
-| `lobby` | User joined lobby | - |
-| `queue:waiting` | Waiting for match | - |
-| `send-offer` | Request to send offer | `{roomId: string}` |
-| `offer` | Received WebRTC offer | `{sdp: string, roomId: string}` |
-| `answer` | Received WebRTC answer | `{sdp: string, roomId: string}` |
-| `add-ice-candidate` | Received ICE candidate | `{candidate: RTCIceCandidate, type: "sender"\|"receiver"}` |
-| `partner:left` | Partner disconnected | `{reason: string}` |
+|---|---:|---|
+| `lobby` | User joined lobby | — |
+| `queue:waiting` | Waiting for a match | — |
+| `send-offer` | Instruct client to create/send offer | `{ roomId: string }` |
+| `offer` | Deliver remote offer | `{ sdp: string, roomId: string }` |
+| `answer` | Deliver remote answer | `{ sdp: string, roomId: string }` |
+| `add-ice-candidate` | Deliver remote ICE candidate | `{ candidate: RTCIceCandidate, type: 'sender' | 'receiver' }` |
+| `partner:left` | Remote peer disconnected | `{ reason?: string }` |
 
-## 🏛️ Project Structure
+## Project structure
 
 ```
 Helixque/
-├── backend/                 # Node.js backend
-│   ├── src/
-│   │   ├── managers/
-│   │   │   ├── UserManager.ts    # User matching and queue management
-│   │   │   └── RoomManager.ts    # Room creation and WebRTC signaling
-│   │   └── index.ts         # Express server and Socket.IO setup
-│   ├── package.json
-│   └── tsconfig.json
-├── frontend/                # Next.js frontend
-│   ├── app/
-│   │   ├── page.tsx         # Home page
-│   │   ├── match/           # Device setup and matching
-│   │   └── room/            # Video chat rooms
-│   ├── components/
-│   │   ├── RTC/
-│   │   │   ├── DeviceCheck.tsx   # Camera/mic setup
-│   │   │   └── Room.tsx          # Video chat interface
-│   │   └── ui/              # Reusable UI components
-│   └── package.json
-└── README.md
+├─ backend/           # Signaling server (Node.js + TypeScript)
+│  ├─ src/
+│  │  ├─ managers/    # UserManager, RoomManager
+│  │  └─ index.ts     # Entry point
+│  └─ package.json
+├─ frontend/          # Next.js app (TypeScript)
+│  ├─ app/            # App Router pages
+│  ├─ components/     # UI + RTC components
+│  └─ package.json
+└─ README.md
 ```
 
-## 🧩 Core Components
+## Core components
 
-### UserManager
-Handles user lifecycle, preference-based matching logic, and connection management:
-- **Smart Matching**: Maintains preference-based matching system for connecting relevant users
-- **Connection Management**: Prevents unwanted reconnections and manages user preferences
-- **Connection Tracking**: Monitors online/offline status
-- **Professional Networking**: Manages current conversation pairs based on user criteria
+- UserManager (backend) — queue, matching, presence, session state
+- RoomManager (backend) — room lifecycle, signaling orchestration, cleanup
+- Room (frontend) — RTCPeerConnection lifecycle, media controls, UI state
 
-### RoomManager  
-Manages chat rooms and WebRTC signaling:
-- **Room Creation**: Sets up communication channels between users
-- **WebRTC Signaling**: Facilitates offer/answer/ICE exchange
-- **Teardown**: Cleans up rooms when users leave
+## Testing
 
-### Room Component
-Frontend video chat interface:
-- **Media Stream Management**: Handles local and remote video/audio
-- **WebRTC Peer Connections**: Establishes direct communication
-- **UI Controls**: Next, leave, and device toggle buttons
-- **Connection States**: Loading, connected, and error states
-
-## 🎯 Usage
-
-1. **Join**: Visit the application and allow camera/microphone access
-2. **Setup**: Configure your video/audio preferences and connection criteria
-3. **Connect**: Get automatically paired with another user based on your preferences
-4. **Chat**: Enjoy real-time professional video conversation
-5. **Next**: Click "Next" to find a new conversation partner
-6. **Leave**: Click "Leave" to exit the application
-
-## 🔒 Privacy & Security
-
-- **No Data Storage**: Conversations are private and not recorded or stored
-- **Peer-to-Peer**: Video/audio streams directly between users for maximum privacy
-- **Temporary Rooms**: Chat rooms are destroyed when users disconnect
-- **Preference Management**: Your connection preferences are kept secure and private
-
-## 🚀 Deployment
-
-### Backend Deployment (Render/Railway/Heroku)
-
-1. Set the `PORT` environment variable (automatically provided by most platforms)
-2. Ensure `NODE_ENV=production`
-3. Run `npm run build && npm start`
-
-### Frontend Deployment (Vercel/Netlify)
-
-1. Set `NEXT_PUBLIC_BACKEND_URL` to your backend URL
-2. Run `npm run build`
-3. Deploy the generated `.next` directory
-
-### Docker Deployment
-
-Backend Dockerfile:
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY dist ./dist
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-## 🛠️ Development
-
-### Adding New Features
-
-1. **Backend**: Extend `UserManager` or `RoomManager` classes
-2. **Frontend**: Add new components in `/components` directory
-3. **Real-time Events**: Update Socket.IO event handlers in both backend and frontend
-
-### Testing
+Run tests where present (no-op if none are configured):
 
 ```bash
-# Backend tests (if available)
+# Backend
 cd backend
 npm test
 
-# Frontend tests (if available)  
-cd frontend
+# Frontend
+cd ../frontend
 npm test
 ```
 
-## 🤝 Contributing
+## Deployment
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Backend (Render / Railway / Heroku)
+
+1. Set environment variables (PORT, NODE_ENV, NEXT_PUBLIC_BACKEND_URL, optional REDIS_URL and TURN_*).
+2. Build and run:
+
+```bash
+cd backend
+npm run build
+npm start
+```
+
+Frontend (Vercel / Netlify)
+
+1. Set `NEXT_PUBLIC_BACKEND_URL` to your backend's HTTPS endpoint.
+2. Use the platform's Next.js build pipeline. On Vercel this is automatic; `npm start` is not required.
+
+Docker examples are included in the project to containerize frontend and backend for advanced deployments.
+
+## Contribution guidelines
+
+- Please star the repository to support the project.
+- Open an issue to discuss larger features before implementing.
+- Use small, focused pull requests with descriptive titles and testing notes.
+- Maintain TypeScript types and follow existing code style. Run linters and formatters before committing.
+
+Community and support: <a href="https://discord.gg/XC4YsUBg2"><img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white"/></a> or open issues on GitHub.
+
+To contribute: join our Discord (use the badge above) to discuss ideas, coordinate work, ask questions, and get faster PR reviews.
 
 ![Alt](https://repobeats.axiom.co/api/embed/241636b7674153b09f7a274fc31e67ceaf13859f.svg "Repobeats analytics image")
 
 <a href="https://github.com/HXQLabs/Helixque/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=HXQLabs/Helixque" />
+	<img src="https://contrib.rocks/image?repo=HXQLabs/Helixque" />
 </a>
 
+## License & acknowledgments
 
-## 📝 License
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Thanks to the open-source projects used here: WebRTC, Socket.IO, Next.js, React, and Tailwind CSS.
 
-## 🙏 Acknowledgments
-
-- WebRTC technology for peer-to-peer communication
-- Socket.IO for real-time bidirectional communication
-- Next.js and React for the modern frontend framework
-- TailwindCSS for beautiful, responsive styling
-
-## 📞 Support
-
-For issues, questions, or contributions, please open an issue on GitHub or contact the maintainers in discord.
-
----
-
-**Note**: This application requires HTTPS in production for WebRTC to function properly. Most modern deployment platforms (Vercel, Netlify, Render) provide HTTPS by default.
