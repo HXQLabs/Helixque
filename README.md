@@ -2,6 +2,16 @@
 
 A professional real-time video chat application that connects people based on your preferences. Built with modern web technologies for seamless peer-to-peer communication and professional networking.
 
+---
+
+## ⭐ Support & Contribution Rules
+
+- Please **star the repository** before contributing — PRs are **only accepted if you have starred the repo** ⭐  
+- Join our **Discord community** to connect with contributors, ask questions, and discuss features:  
+  👉 [Join our Discord](https://discord.gg/XC4YsUBg2)  
+
+---
+
 ## ✨ Features
 
 - **Professional Video Chat**: Connect with people worldwide based on your preferences through video and audio
@@ -272,7 +282,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## 📞 Support
 
-For issues, questions, or contributions, please open an issue on GitHub or contact the maintainers.
+For issues, questions, or contributions, please open an issue on GitHub or contact the maintainers in discord.
 
 ---
 
