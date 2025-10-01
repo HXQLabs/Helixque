@@ -92,7 +92,7 @@ export default function ChatPanel({
           // Only show toast if chat window is closed
           if (!isOpen) {
             // subtle toast at bottom-right when receiving a new message
-            toast(
+            toast.success(
               `${m.from}: ${m.text.length > 80 ? m.text.slice(0, 77) + '...' : m.text}`,
               { 
                 duration: 3500,
