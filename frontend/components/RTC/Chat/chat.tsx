@@ -21,12 +21,14 @@ export default function ChatPanel({
   name,
   mySocketId,
   collapsed = false,
+  isOpen = false,
 }: {
   socket: Socket | null;
   roomId: string | null;
   name: string;
   mySocketId: string | null;
   collapsed?: boolean;
+  isOpen?: boolean;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -50,6 +52,13 @@ export default function ChatPanel({
   }, [socket]);
 
   const canSend = !!socket && socket.connected && !!roomId && !!name && !!(sidRef.current || mySocketId);
+
+  // Dismiss existing toasts when chat window opens
+  useEffect(() => {
+    if (isOpen) {
+      toast.dismiss();
+    }
+  }, [isOpen]);
 
   // auto-scroll to bottom on new messages - DISABLED per user request
   // useEffect(() => {
@@ -79,20 +88,23 @@ export default function ChatPanel({
         const next = [...prev, { ...m, kind: "user" as const }];
         return next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
       });
-      try {
-        // subtle toast at bottom-right when receiving a new message
-        toast(
-          `${m.from}: ${m.text.length > 80 ? m.text.slice(0, 77) + '...' : m.text}`,
-          { 
-            duration: 2200,
-            position: 'bottom-right',
-            style: {
-              bottom: '100px', // Position above the control icons
-              right: '20px',
-            }
+        try {
+          // Only show toast if chat window is closed
+          if (!isOpen) {
+            // subtle toast at bottom-right when receiving a new message
+            toast(
+              `${m.from}: ${m.text.length > 80 ? m.text.slice(0, 77) + '...' : m.text}`,
+              { 
+                duration: 3500,
+                position: 'bottom-right',
+                style: {
+                  bottom: '100px', // Position above the control icons
+                  right: '20px',
+                }
+              }
+            );
           }
-        );
-      } catch {}
+        } catch {}
     };
 
     const onSystem = (m: { text: string; ts?: number }) => {
