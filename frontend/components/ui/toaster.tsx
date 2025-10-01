@@ -3,19 +3,21 @@ import { Toaster as SonnerToaster } from "sonner";
 export function Toaster() {
   return (
     <SonnerToaster
+      // System notifications (partner left, connected, etc.) at top-right
       position="top-right"
-      expand={true}
-      richColors
+      expand={false}
+      richColors={false}
       theme="dark"
-      closeButton
+      closeButton={false}
       toastOptions={{
         style: {
-          background: 'rgb(38 38 38)',
-          border: '1px solid rgb(64 64 64)',
+          background: 'rgba(32,32,32,0.95)',
+          border: '1px solid rgba(80,80,80,0.6)',
           color: 'white',
+          boxShadow: '0 6px 24px rgba(0,0,0,0.5)'
         },
         className: 'toast',
-        duration: 4000,
+        duration: 2400,
       }}
     />
   );
