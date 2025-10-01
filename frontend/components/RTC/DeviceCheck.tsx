@@ -2,19 +2,21 @@
 import { useEffect, useRef, useState } from "react";
 import Room from "./Room";
 import { toast } from "sonner";
-import { 
+import {
   IconMicrophone,
   IconMicrophoneOff,
   IconVideo,
   IconVideoOff,
   IconRefresh,
-  IconUser
+  IconUser,
 } from "@tabler/icons-react";
 
 export default function DeviceCheck() {
   const [name, setName] = useState("");
-  const [localAudioTrack, setLocalAudioTrack] = useState<MediaStreamTrack | null>(null);
-  const [localVideoTrack, setLocalVideoTrack] = useState<MediaStreamTrack | null>(null);
+  const [localAudioTrack, setLocalAudioTrack] =
+    useState<MediaStreamTrack | null>(null);
+  const [localVideoTrack, setLocalVideoTrack] =
+    useState<MediaStreamTrack | null>(null);
   const [joined, setJoined] = useState(false);
   const [videoOn, setVideoOn] = useState(true);
   const [audioOn, setAudioOn] = useState(true);
@@ -22,6 +24,25 @@ export default function DeviceCheck() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const getCam = async () => {
+    // Guard clause: prevent getUserMedia error when both are off
+    if (!videoOn && !audioOn) {
+      console.log("Both camera and mic are off, cleaning up tracks");
+      // Stop existing tracks
+      if (localAudioTrack) {
+        localAudioTrack.stop();
+        setLocalAudioTrack(null);
+      }
+      if (localVideoTrack) {
+        localVideoTrack.stop();
+        setLocalVideoTrack(null);
+      }
+      // Clear video preview
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: videoOn,
@@ -29,17 +50,28 @@ export default function DeviceCheck() {
       });
       const audioTrack = stream.getAudioTracks()[0] || null;
       const videoTrack = stream.getVideoTracks()[0] || null;
+
+      // Stop existing tracks before setting new ones
+      if (localAudioTrack) {
+        localAudioTrack.stop();
+      }
+      if (localVideoTrack) {
+        localVideoTrack.stop();
+      }
+
       setLocalAudioTrack(audioTrack);
       setLocalVideoTrack(videoTrack);
 
       if (videoRef.current) {
-        videoRef.current.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
+        videoRef.current.srcObject = videoTrack
+          ? new MediaStream([videoTrack])
+          : null;
         if (videoTrack) await videoRef.current.play().catch(() => {});
       }
     } catch (e: any) {
       const errorMessage = e?.message || "Could not access camera/microphone";
       toast.error("Device Access Error", {
-        description: errorMessage
+        description: errorMessage,
       });
     }
   };
@@ -60,7 +92,6 @@ export default function DeviceCheck() {
   }, [videoOn, audioOn]);
 
   if (joined) {
-
     const handleOnLeave = () => {
       setJoined(false);
       try {
@@ -91,13 +122,16 @@ export default function DeviceCheck() {
       <div className="w-full max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">Ready to connect?</h1>
-          <p className="text-neutral-400 text-lg">Check your camera and microphone before joining</p>
+          <h1 className="text-4xl font-bold text-white mb-4">
+            Ready to connect?
+          </h1>
+          <p className="text-neutral-400 text-lg">
+            Check your camera and microphone before joining
+          </p>
         </div>
 
         {/* Main content grid */}
         <div className="grid lg:grid-cols-2 gap-8 items-start">
-          
           {/* Left Side - Video Preview */}
           <div className="space-y-6">
             {/* Video preview container - rounded */}
@@ -116,7 +150,7 @@ export default function DeviceCheck() {
                     <IconUser className="h-16 w-16 text-white/70" />
                   </div>
                 )}
-                
+
                 {/* Status indicators */}
                 <div className="absolute bottom-3 left-3 flex items-center gap-2">
                   <div className="rounded-md bg-black/60 px-2 py-1 text-xs text-white">
@@ -137,21 +171,33 @@ export default function DeviceCheck() {
               <button
                 onClick={() => setAudioOn((a) => !a)}
                 className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                  audioOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                  audioOn
+                    ? "bg-white/10 hover:bg-white/20"
+                    : "bg-red-600 hover:bg-red-500"
                 }`}
                 title={audioOn ? "Turn off microphone" : "Turn on microphone"}
               >
-                {audioOn ? <IconMicrophone className="h-5 w-5 text-white" /> : <IconMicrophoneOff className="h-5 w-5 text-white" />}
+                {audioOn ? (
+                  <IconMicrophone className="h-5 w-5 text-white" />
+                ) : (
+                  <IconMicrophoneOff className="h-5 w-5 text-white" />
+                )}
               </button>
 
               <button
                 onClick={() => setVideoOn((v) => !v)}
                 className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                  videoOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                  videoOn
+                    ? "bg-white/10 hover:bg-white/20"
+                    : "bg-red-600 hover:bg-red-500"
                 }`}
                 title={videoOn ? "Turn off camera" : "Turn on camera"}
               >
-                {videoOn ? <IconVideo className="h-5 w-5 text-white" /> : <IconVideoOff className="h-5 w-5 text-white" />}
+                {videoOn ? (
+                  <IconVideo className="h-5 w-5 text-white" />
+                ) : (
+                  <IconVideoOff className="h-5 w-5 text-white" />
+                )}
               </button>
 
               <button
@@ -169,8 +215,10 @@ export default function DeviceCheck() {
             <div className="p-8 rounded-2xl border border-white/10 bg-neutral-900/50 backdrop-blur shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-semibold text-white mb-6">Join the conversation</h2>
-                  
+                  <h2 className="text-2xl font-semibold text-white mb-6">
+                    Join the conversation
+                  </h2>
+
                   <label className="block text-sm font-medium text-white mb-3">
                     What should we call you?
                   </label>
@@ -192,12 +240,12 @@ export default function DeviceCheck() {
                 </button>
 
                 <p className="text-xs text-neutral-500 text-center">
-                  By joining, you agree to our terms of service and privacy policy
+                  By joining, you agree to our terms of service and privacy
+                  policy
                 </p>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
