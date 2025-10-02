@@ -79,6 +79,21 @@ export default function Room({
   const [camOn, setCamOn] = useState<boolean>(typeof videoOn === "boolean" ? videoOn : true);
   const [screenShareOn, setScreenShareOn] = useState(false);
 
+  // Ensure tracks match initial device states
+  useEffect(() => {
+    if (localAudioTrack) {
+      localAudioTrack.enabled = micOn;
+    }
+    if (localVideoTrack) {
+      localVideoTrack.enabled = camOn;
+      if (!camOn) {
+        // Stop the track if camera should be off
+        localVideoTrack.stop();
+        currentVideoTrackRef.current = null;
+      }
+    }
+  }, []);
+
   
 
   // Peer mic indicator (keeping this; camera overlay removed per your request)
@@ -757,9 +772,10 @@ export default function Room({
     if (!el) return;
     if (!localVideoTrack && !localAudioTrack) return;
 
+    // Only add tracks if they should be active based on initial state
     const stream = new MediaStream([
-      ...(localVideoTrack ? [localVideoTrack] : []),
-      ...(localAudioTrack ? [localAudioTrack] : []),
+      ...(localVideoTrack && camOn ? [localVideoTrack] : []),
+      ...(localAudioTrack && micOn ? [localAudioTrack] : []),
     ]);
 
     el.srcObject = stream;
@@ -776,7 +792,7 @@ export default function Room({
     window.addEventListener("click", onceClick, { once: true });
 
     return () => window.removeEventListener("click", onceClick);
-  }, [localAudioTrack, localVideoTrack]);
+  }, [localAudioTrack, localVideoTrack, camOn, micOn]);
 
   // Broadcast our media state whenever it changes (optional)
   useEffect(() => {
@@ -827,8 +843,12 @@ export default function Room({
       // Add initial local tracks based on state
       console.log(`🎥 Caller track setup - camOn: ${camOn}, micOn: ${micOn}`);
       if (localAudioTrack && localAudioTrack.readyState === "live" && micOn) {
+        localAudioTrack.enabled = true;
         pc.addTrack(localAudioTrack);
         console.log("Added local audio track to caller PC");
+      } else if (localAudioTrack && !micOn) {
+        localAudioTrack.enabled = false;
+        console.log("Audio track disabled per initial state");
       }
       
       // Handle video track - ensure we have a fresh track if camera is on
@@ -987,8 +1007,12 @@ export default function Room({
       // Add initial local tracks based on state
       console.log(`🎥 Answerer track setup - camOn: ${camOn}, micOn: ${micOn}`);
       if (localAudioTrack && localAudioTrack.readyState === "live" && micOn) {
+        localAudioTrack.enabled = true;
         pc.addTrack(localAudioTrack);
         console.log("Added local audio track to answerer PC");
+      } else if (localAudioTrack && !micOn) {
+        localAudioTrack.enabled = false;
+        console.log("Audio track disabled per initial state");
       }
       
       // Handle video track - ensure we have a fresh track if camera is on
