@@ -63,6 +63,7 @@ export class UserManager {
     this.users = this.users.filter((x) => x.socket.id !== socketId);
     this.queue = this.queue.filter((x) => x !== socketId);
     this.online.delete(socketId);
+    this.mediaState.delete(socketId);
     this.clearQueueTimeout(socketId);
     this.handleLeave(socketId, "explicit-remove");
   }
