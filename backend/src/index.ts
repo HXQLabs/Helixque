@@ -73,6 +73,44 @@ io.on("connection", (socket: Socket) => {
     if (roomId) socket.join(roomId);
   });
 
+  // Professional text-only chat handlers
+  socket.on("professional-chat:join-room", ({ roomId, name }: { roomId: string; name: string }) => {
+    console.log(`[PROFESSIONAL CHAT] ${name} joining room ${roomId}`);
+    socket.join(`prof-chat:${roomId}`);
+    userManager.setRoom(socket.id, roomId);
+  });
+
+  socket.on("professional-chat:message", (payload: {
+    roomId: string;
+    text: string;
+    from: string;
+    clientId: string;
+  }) => {
+    const { roomId, text, from, clientId } = payload || {};
+    const safeText = (text ?? "").toString().trim().slice(0, 1000);
+    if (!roomId || !safeText) return;
+
+    console.log(`[PROFESSIONAL CHAT] Message in ${roomId} from ${from}: ${safeText}`);
+    
+    // Broadcast to all participants in the professional chat room
+    socket.nsp.in(`prof-chat:${roomId}`).emit("professional-chat:message", {
+      id: `${clientId}-${Date.now()}`,
+      text: safeText,
+      from,
+      clientId,
+      ts: Date.now(),
+      type: 'message',
+    });
+  });
+
+  socket.on("professional-chat:typing-start", ({ roomId, from }: { roomId: string; from: string }) => {
+    socket.to(`prof-chat:${roomId}`).emit("professional-chat:typing-start", { from });
+  });
+
+  socket.on("professional-chat:typing-stop", ({ roomId, from }: { roomId: string; from: string }) => {
+    socket.to(`prof-chat:${roomId}`).emit("professional-chat:typing-stop", { from });
+  });
+
   // Screen share state and track management
   socket.on("screen:state", ({ roomId, on }) => {
     socket.to(roomId).emit("screen:state", { on });
