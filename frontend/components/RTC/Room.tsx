@@ -92,7 +92,7 @@ export default function Room({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const localScreenShareRef = useRef<HTMLVideoElement>(null);
   const remoteScreenShareRef = useRef<HTMLVideoElement>(null);
-  const camRef = useRef(camOn);
+  // const camRef = useRef(camOn);
 
   // socket/pc refs
   const socketRef = useRef<Socket | null>(null);
@@ -914,7 +914,40 @@ if (camOn) {  // Use the state variable directly
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoTrack = stream.getVideoTracks()[0];
       currentVideoTrackRef.current = videoTrack;
-      // ... rest of the preview setup
+      if (localVideoRef.current) {
+              console.log("🎥 Updating local video preview with new track");
+              const localStream = localVideoRef.current.srcObject as MediaStream || new MediaStream();
+              const oldTracks = localStream.getVideoTracks();
+              console.log("🗑️ Removing", oldTracks.length, "old video tracks from local preview");
+              localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
+              localStream.addTrack(videoTrack);
+              console.log("➕ Added new video track to local preview stream");
+              if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = localStream;
+              await localVideoRef.current.play().catch(() => {});
+              console.log("▶️ Local video play completed");
+              
+              // Additional debug: Check the video element state
+              setTimeout(() => {
+                if (localVideoRef.current) {
+                  console.log("🔍 Caller local video element check:");
+                  console.log("   - srcObject exists:", !!localVideoRef.current.srcObject);
+                  console.log("   - videoWidth:", localVideoRef.current.videoWidth);
+                  console.log("   - videoHeight:", localVideoRef.current.videoHeight);
+                  console.log("   - readyState:", localVideoRef.current.readyState);
+                  console.log("   - paused:", localVideoRef.current.paused);
+                  if (localVideoRef.current.srcObject) {
+                    const stream = localVideoRef.current.srcObject as MediaStream;
+                    console.log("   - stream active:", stream.active);
+                    console.log("   - video tracks:", stream.getVideoTracks().length);
+                    stream.getVideoTracks().forEach((track, i) => {
+                      console.log(`   - track ${i}: enabled=${track.enabled}, readyState=${track.readyState}`);
+                    });
+                  }
+                }
+              }, 100);
+            } else {
+              console.warn("⚠️ Local video ref not available for preview update");
+            }
     } catch (err) {
       console.error("Error creating video track:", err);
       videoTrack = null;
@@ -1108,7 +1141,41 @@ if (camOn) {  // Use the state variable directly
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             videoTrack = stream.getVideoTracks()[0];
             currentVideoTrackRef.current = videoTrack;
-            // ... rest of the preview setup
+            // Update local preview with new track
+            if (localVideoRef.current) {
+              console.log("🎥 Updating local video preview with new track");
+              const localStream = localVideoRef.current.srcObject as MediaStream || new MediaStream();
+              const oldTracks = localStream.getVideoTracks();
+              console.log("🗑️ Removing", oldTracks.length, "old video tracks from local preview");
+              localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
+              localStream.addTrack(videoTrack);
+              console.log("➕ Added new video track to local preview stream");
+              if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = localStream;
+              await localVideoRef.current.play().catch(() => {});
+              console.log("▶️ Local video play completed");
+              
+              // Additional debug: Check the video element state
+              setTimeout(() => {
+                if (localVideoRef.current) {
+                  console.log("🔍 Answerer local video element check:");
+                  console.log("   - srcObject exists:", !!localVideoRef.current.srcObject);
+                  console.log("   - videoWidth:", localVideoRef.current.videoWidth);
+                  console.log("   - videoHeight:", localVideoRef.current.videoHeight);
+                  console.log("   - readyState:", localVideoRef.current.readyState);
+                  console.log("   - paused:", localVideoRef.current.paused);
+                  if (localVideoRef.current.srcObject) {
+                    const stream = localVideoRef.current.srcObject as MediaStream;
+                    console.log("   - stream active:", stream.active);
+                    console.log("   - video tracks:", stream.getVideoTracks().length);
+                    stream.getVideoTracks().forEach((track, i) => {
+                      console.log(`   - track ${i}: enabled=${track.enabled}, readyState=${track.readyState}`);
+                    });
+                  }
+                }
+              }, 100);
+            } else {
+              console.warn("⚠️ Local video ref not available for preview update");
+            }
           } catch (err) {
             console.error("Error creating video track:", err);
             videoTrack = null;
