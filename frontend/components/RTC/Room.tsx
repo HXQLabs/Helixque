@@ -24,6 +24,21 @@ import ChatPanel from "./Chat/chat"; // ← adjust path if different
 
 const URL = process.env.BACKEND_URI || "http://localhost:5001";
 
+/**
+ * Renders the video chat "Room" UI and manages WebRTC, signaling, and local media state for a one-to-one match session.
+ *
+ * This component handles matchmaking lobby state, socket signaling, peer connection setup and teardown,
+ * local preview and remote media binding, toggling microphone/camera/screen-share, renegotiation when tracks change,
+ * and provides controls for next match, reporting, chat, and leaving the room.
+ *
+ * @param name - Display name for the local user shown in the UI and sent to the server for presence/identification.
+ * @param localAudioTrack - Optional local microphone MediaStreamTrack used for sending audio to the peer.
+ * @param localVideoTrack - Optional local camera MediaStreamTrack used for the local preview and initial video sending.
+ * @param audioOn - Optional initial microphone enabled state; if omitted, microphone defaults to on.
+ * @param videoOn - Optional initial camera enabled state; if omitted, camera defaults to on.
+ * @param onLeave - Optional callback invoked after the user leaves the room (used by parent to unmount or update state).
+ * @returns The Room React element which includes video tiles, screen-share views, chat drawer, and control buttons.
+ */
 export default function Room({
   name,
   localAudioTrack,
@@ -92,6 +107,7 @@ export default function Room({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const localScreenShareRef = useRef<HTMLVideoElement>(null);
   const remoteScreenShareRef = useRef<HTMLVideoElement>(null);
+  const camRef = useRef(camOn);
 
   // socket/pc refs
   const socketRef = useRef<Socket | null>(null);
@@ -811,6 +827,11 @@ export default function Room({
     s.on("send-offer", async ({ roomId: rid }) => {
       setRoomId(rid);
       s.emit("chat:join", { roomId: rid, name });
+      s.emit("media-state-change", {
+  isScreenSharing: screenShareOn,
+  micOn: micOn,
+  camOn: camOn
+});
       setLobby(false);
       setStatus("Connecting…");
       
@@ -832,69 +853,99 @@ export default function Room({
       }
       
       // Handle video track - ensure we have a fresh track if camera is on
-      if (camOn) {
-        console.log("📹 Caller: Camera is ON, will add video track");
-        let videoTrack = currentVideoTrackRef.current;
+      // if (camOn) {
+      //   console.log("📹 Caller: Camera is ON, will add video track");
+      //   let videoTrack = currentVideoTrackRef.current;
         
-        // If we don't have a valid video track, create a new one
-        if (!videoTrack || videoTrack.readyState === "ended") {
-          console.log("Creating new video track for caller connection");
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            videoTrack = stream.getVideoTracks()[0];
-            currentVideoTrackRef.current = videoTrack;
-            console.log("📹 Created new video track:", videoTrack.id, "readyState:", videoTrack.readyState);
+      //   // If we don't have a valid video track, create a new one
+      //   if (!videoTrack || videoTrack.readyState === "ended") {
+      //     console.log("Creating new video track for caller connection");
+      //     try {
+      //       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      //       videoTrack = stream.getVideoTracks()[0];
+      //       currentVideoTrackRef.current = videoTrack;
+      //       console.log("📹 Created new video track:", videoTrack.id, "readyState:", videoTrack.readyState);
             
-            // Update local preview with new track
-            if (localVideoRef.current) {
-              console.log("🎥 Updating local video preview with new track");
-              const localStream = localVideoRef.current.srcObject as MediaStream || new MediaStream();
-              const oldTracks = localStream.getVideoTracks();
-              console.log("🗑️ Removing", oldTracks.length, "old video tracks from local preview");
-              localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
-              localStream.addTrack(videoTrack);
-              console.log("➕ Added new video track to local preview stream");
-              if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = localStream;
-              await localVideoRef.current.play().catch(() => {});
-              console.log("▶️ Local video play completed");
+      //       // Update local preview with new track
+      //       if (localVideoRef.current) {
+      //         console.log("🎥 Updating local video preview with new track");
+      //         const localStream = localVideoRef.current.srcObject as MediaStream || new MediaStream();
+      //         const oldTracks = localStream.getVideoTracks();
+      //         console.log("🗑️ Removing", oldTracks.length, "old video tracks from local preview");
+      //         localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
+      //         localStream.addTrack(videoTrack);
+      //         console.log("➕ Added new video track to local preview stream");
+      //         if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = localStream;
+      //         await localVideoRef.current.play().catch(() => {});
+      //         console.log("▶️ Local video play completed");
               
-              // Additional debug: Check the video element state
-              setTimeout(() => {
-                if (localVideoRef.current) {
-                  console.log("🔍 Caller local video element check:");
-                  console.log("   - srcObject exists:", !!localVideoRef.current.srcObject);
-                  console.log("   - videoWidth:", localVideoRef.current.videoWidth);
-                  console.log("   - videoHeight:", localVideoRef.current.videoHeight);
-                  console.log("   - readyState:", localVideoRef.current.readyState);
-                  console.log("   - paused:", localVideoRef.current.paused);
-                  if (localVideoRef.current.srcObject) {
-                    const stream = localVideoRef.current.srcObject as MediaStream;
-                    console.log("   - stream active:", stream.active);
-                    console.log("   - video tracks:", stream.getVideoTracks().length);
-                    stream.getVideoTracks().forEach((track, i) => {
-                      console.log(`   - track ${i}: enabled=${track.enabled}, readyState=${track.readyState}`);
-                    });
-                  }
-                }
-              }, 100);
-            } else {
-              console.warn("⚠️ Local video ref not available for preview update");
-            }
-          } catch (err) {
-            console.error("Error creating video track for caller:", err);
-            videoTrack = null;
-          }
-        }
+      //         // Additional debug: Check the video element state
+      //         setTimeout(() => {
+      //           if (localVideoRef.current) {
+      //             console.log("🔍 Caller local video element check:");
+      //             console.log("   - srcObject exists:", !!localVideoRef.current.srcObject);
+      //             console.log("   - videoWidth:", localVideoRef.current.videoWidth);
+      //             console.log("   - videoHeight:", localVideoRef.current.videoHeight);
+      //             console.log("   - readyState:", localVideoRef.current.readyState);
+      //             console.log("   - paused:", localVideoRef.current.paused);
+      //             if (localVideoRef.current.srcObject) {
+      //               const stream = localVideoRef.current.srcObject as MediaStream;
+      //               console.log("   - stream active:", stream.active);
+      //               console.log("   - video tracks:", stream.getVideoTracks().length);
+      //               stream.getVideoTracks().forEach((track, i) => {
+      //                 console.log(`   - track ${i}: enabled=${track.enabled}, readyState=${track.readyState}`);
+      //               });
+      //             }
+      //           }
+      //         }, 100);
+      //       } else {
+      //         console.warn("⚠️ Local video ref not available for preview update");
+      //       }
+      //     } catch (err) {
+      //       console.error("Error creating video track for caller:", err);
+      //       videoTrack = null;
+      //     }
+      //   }
         
-        // Add the video track to the connection
-        if (videoTrack && videoTrack.readyState === "live") {
-          const vs = pc.addTrack(videoTrack);
-          videoSenderRef.current = vs;
-          console.log("Added fresh video track to caller PC", vs);
-        }
-      } else {
-        console.log("📵 Caller: Camera is OFF, NOT adding video track");
-      }
+      //   // Add the video track to the connection
+      //   if (videoTrack && videoTrack.readyState === "live") {
+      //     const vs = pc.addTrack(videoTrack);
+      //     videoSenderRef.current = vs;
+      //     console.log("Added fresh video track to caller PC", vs);
+      //   }
+      // } else {
+      //   console.log("📵 Caller: Camera is OFF, NOT adding video track");
+      // }
+
+      // Replace the camera check logic with:
+if (camOn) {  // Use the state variable directly
+  console.log("📹 Camera is ON, will add video track");
+  let videoTrack = currentVideoTrackRef.current;
+  
+  // Only reacquire if we don't have a valid track
+  if (!videoTrack || videoTrack.readyState === "ended") {
+    console.log("Creating new video track for connection");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoTrack = stream.getVideoTracks()[0];
+      currentVideoTrackRef.current = videoTrack;
+      // ... rest of the preview setup
+    } catch (err) {
+      console.error("Error creating video track:", err);
+      videoTrack = null;
+    }
+  }
+  
+  if (videoTrack && videoTrack.readyState === "live") {
+    const vs = pc.addTrack(videoTrack);
+    videoSenderRef.current = vs;
+    console.log("Added video track to PC", vs);
+  }
+} else {
+  console.log("📵 Camera is OFF, NOT adding video track");
+  // Ensure no video track exists
+  currentVideoTrackRef.current = null;
+}
 
       ensureRemoteStream();
       pc.ontrack = (e) => {
@@ -971,6 +1022,11 @@ export default function Room({
     s.on("offer", async ({ roomId: rid, sdp: remoteSdp }) => {
       setRoomId(rid);
       s.emit("chat:join", { roomId: rid, name });
+      s.emit("media-state-change", {
+  isScreenSharing: screenShareOn,
+  micOn: micOn,
+  camOn: camOn
+});
       setLobby(false);
       setStatus("Connecting…");
       
@@ -992,68 +1048,97 @@ export default function Room({
       }
       
       // Handle video track - ensure we have a fresh track if camera is on
-      if (camOn) {
-        console.log("📹 Answerer: Camera is ON, will add video track");
+      // if (camOn) {
+      //   console.log("📹 Answerer: Camera is ON, will add video track");
+      //   let videoTrack = currentVideoTrackRef.current;
+        
+      //   // If we don't have a valid video track, create a new one
+      //   if (!videoTrack || videoTrack.readyState === "ended") {
+      //     console.log("Creating new video track for answerer connection");
+      //     try {
+      //       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      //       videoTrack = stream.getVideoTracks()[0];
+      //       currentVideoTrackRef.current = videoTrack;
+      //       console.log("📹 Created new video track:", videoTrack.id, "readyState:", videoTrack.readyState);
+            
+      //       // Update local preview with new track
+      //       if (localVideoRef.current) {
+      //         console.log("🎥 Updating local video preview with new track");
+      //         const localStream = localVideoRef.current.srcObject as MediaStream || new MediaStream();
+      //         const oldTracks = localStream.getVideoTracks();
+      //         console.log("🗑️ Removing", oldTracks.length, "old video tracks from local preview");
+      //         localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
+      //         localStream.addTrack(videoTrack);
+      //         console.log("➕ Added new video track to local preview stream");
+      //         if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = localStream;
+      //         await localVideoRef.current.play().catch(() => {});
+      //         console.log("▶️ Local video play completed");
+              
+      //         // Additional debug: Check the video element state
+      //         setTimeout(() => {
+      //           if (localVideoRef.current) {
+      //             console.log("🔍 Answerer local video element check:");
+      //             console.log("   - srcObject exists:", !!localVideoRef.current.srcObject);
+      //             console.log("   - videoWidth:", localVideoRef.current.videoWidth);
+      //             console.log("   - videoHeight:", localVideoRef.current.videoHeight);
+      //             console.log("   - readyState:", localVideoRef.current.readyState);
+      //             console.log("   - paused:", localVideoRef.current.paused);
+      //             if (localVideoRef.current.srcObject) {
+      //               const stream = localVideoRef.current.srcObject as MediaStream;
+      //               console.log("   - stream active:", stream.active);
+      //               console.log("   - video tracks:", stream.getVideoTracks().length);
+      //               stream.getVideoTracks().forEach((track, i) => {
+      //                 console.log(`   - track ${i}: enabled=${track.enabled}, readyState=${track.readyState}`);
+      //               });
+      //             }
+      //           }
+      //         }, 100);
+      //       } else {
+      //         console.warn("⚠️ Local video ref not available for preview update");
+      //       }
+      //     } catch (err) {
+      //       console.error("Error creating video track for answerer:", err);
+      //       videoTrack = null;
+      //     }
+      //   }
+        
+      //   // Add the video track to the connection
+      //   if (videoTrack && videoTrack.readyState === "live") {
+      //     const vs = pc.addTrack(videoTrack);
+      //     videoSenderRef.current = vs;
+      //     console.log("Added fresh video track to answerer PC", vs);
+      //   }
+      // } else {
+      //   console.log("📵 Answerer: Camera is OFF, NOT adding video track");
+      // }
+      // Replace the camera check logic with:
+      if (camOn) {  // Use the state variable directly
+        console.log("📹 Camera is ON, will add video track");
         let videoTrack = currentVideoTrackRef.current;
         
-        // If we don't have a valid video track, create a new one
+        // Only reacquire if we don't have a valid track
         if (!videoTrack || videoTrack.readyState === "ended") {
-          console.log("Creating new video track for answerer connection");
+          console.log("Creating new video track for connection");
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             videoTrack = stream.getVideoTracks()[0];
             currentVideoTrackRef.current = videoTrack;
-            console.log("📹 Created new video track:", videoTrack.id, "readyState:", videoTrack.readyState);
-            
-            // Update local preview with new track
-            if (localVideoRef.current) {
-              console.log("🎥 Updating local video preview with new track");
-              const localStream = localVideoRef.current.srcObject as MediaStream || new MediaStream();
-              const oldTracks = localStream.getVideoTracks();
-              console.log("🗑️ Removing", oldTracks.length, "old video tracks from local preview");
-              localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
-              localStream.addTrack(videoTrack);
-              console.log("➕ Added new video track to local preview stream");
-              if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = localStream;
-              await localVideoRef.current.play().catch(() => {});
-              console.log("▶️ Local video play completed");
-              
-              // Additional debug: Check the video element state
-              setTimeout(() => {
-                if (localVideoRef.current) {
-                  console.log("🔍 Answerer local video element check:");
-                  console.log("   - srcObject exists:", !!localVideoRef.current.srcObject);
-                  console.log("   - videoWidth:", localVideoRef.current.videoWidth);
-                  console.log("   - videoHeight:", localVideoRef.current.videoHeight);
-                  console.log("   - readyState:", localVideoRef.current.readyState);
-                  console.log("   - paused:", localVideoRef.current.paused);
-                  if (localVideoRef.current.srcObject) {
-                    const stream = localVideoRef.current.srcObject as MediaStream;
-                    console.log("   - stream active:", stream.active);
-                    console.log("   - video tracks:", stream.getVideoTracks().length);
-                    stream.getVideoTracks().forEach((track, i) => {
-                      console.log(`   - track ${i}: enabled=${track.enabled}, readyState=${track.readyState}`);
-                    });
-                  }
-                }
-              }, 100);
-            } else {
-              console.warn("⚠️ Local video ref not available for preview update");
-            }
+            // ... rest of the preview setup
           } catch (err) {
-            console.error("Error creating video track for answerer:", err);
+            console.error("Error creating video track:", err);
             videoTrack = null;
           }
         }
         
-        // Add the video track to the connection
         if (videoTrack && videoTrack.readyState === "live") {
           const vs = pc.addTrack(videoTrack);
           videoSenderRef.current = vs;
-          console.log("Added fresh video track to answerer PC", vs);
+          console.log("Added video track to PC", vs);
         }
       } else {
-        console.log("📵 Answerer: Camera is OFF, NOT adding video track");
+        console.log("📵 Camera is OFF, NOT adding video track");
+        // Ensure no video track exists
+        currentVideoTrackRef.current = null;
       }
 
       await pc.setRemoteDescription(new RTCSessionDescription(remoteSdp));
@@ -1343,10 +1428,143 @@ export default function Room({
 
   // --- Actions --------------------------------------------------------------
 
+  // function handleNextConnection(currentCamState: boolean, currentMicState: boolean, reason: "next" | "partner-left" = "next") {
+  //   console.log("🔄 HANDLE_NEXT_CONNECTION START:", { currentCamState, currentMicState, reason });
+    
+  //   // Clean up peer connections but preserve local tracks and states
+  //   try {
+  //     if (sendingPcRef.current) {
+  //       try {
+  //         sendingPcRef.current.getSenders().forEach((sn) => {
+  //           try {
+  //             sendingPcRef.current?.removeTrack(sn);
+  //           } catch (err) {
+  //             console.error("Error removing sender track:", err);
+  //           }
+  //         });
+  //       } catch {}
+  //       sendingPcRef.current.close();
+  //     }
+  //     if (receivingPcRef.current) {
+  //       try {
+  //         receivingPcRef.current.getSenders().forEach((sn) => {
+  //           try {
+  //             receivingPcRef.current?.removeTrack(sn)
+  //           } catch (err) {
+  //             console.error("Error removing receiver track:", err);
+  //           }
+  //         });
+  //       } catch {}
+  //       receivingPcRef.current.close();
+  //     }
+  //   } catch (err) {
+  //     console.error("Error in peer connection cleanup:", err);
+  //   }
+    
+  //   // Clear peer connection refs
+  //   sendingPcRef.current = null;
+  //   receivingPcRef.current = null;
+
+  //   // Clean up remote stream only
+  //   if (remoteStreamRef.current) {
+  //     try {
+  //       const tracks = remoteStreamRef.current.getTracks();
+  //       console.log(`Stopping ${tracks.length} remote tracks`);
+  //       tracks.forEach((t) => {
+  //         try {
+  //           t.stop();
+  //         } catch (err) {
+  //           console.error(`Error stopping remote ${t.kind} track:`, err);
+  //         }
+  //       });
+  //     } catch (err) {
+  //       console.error("Error stopping remote tracks:", err);
+  //     }
+  //   }
+    
+  //   // Reset remote stream
+  //   remoteStreamRef.current = new MediaStream();
+    
+  //   // Clear remote video elements
+  //   if (remoteVideoRef.current) {
+  //     remoteVideoRef.current.srcObject = null;
+  //     try {
+  //       remoteVideoRef.current.load();
+  //     } catch {}
+  //   }
+  //   if (remoteAudioRef.current) {
+  //     remoteAudioRef.current.srcObject = null;
+  //     try {
+  //       remoteAudioRef.current.load();
+  //     } catch {}
+  //   }
+
+  //   // Reset peer states but keep our local states (micOn, camOn, screenShareOn)
+  //   setShowChat(false);
+  //   setPeerMicOn(true);
+  //   setPeerCamOn(true);
+  //   setPeerScreenShareOn(false);
+
+  //   // Clear video sender ref so new connection can set it up properly
+  //   videoSenderRef.current = null;
+
+  //   // If camera is OFF, ensure we clean up any existing video track immediately
+  //   if (!currentCamState) {
+  //     console.log("🚫 CAMERA OFF - Cleaning up video tracks");
+  //     console.log("📹 Current video track exists:", !!currentVideoTrackRef.current);
+      
+  //     if (currentVideoTrackRef.current) {
+  //       try {
+  //         console.log("🛑 Stopping video track:", currentVideoTrackRef.current.id);
+  //         currentVideoTrackRef.current.stop();
+  //         currentVideoTrackRef.current = null;
+  //         console.log("✅ Video track stopped and cleared");
+  //       } catch (err) {
+  //         console.error("❌ Error stopping video track:", err);
+  //       }
+  //     }
+      
+  //     // Also clean up local video preview to match the off state
+  //     if (localVideoRef.current && localVideoRef.current.srcObject) {
+  //       const ms = localVideoRef.current.srcObject as MediaStream;
+  //       const videoTracks = ms.getVideoTracks();
+  //       console.log("🎥 Local preview video tracks to remove:", videoTracks.length);
+        
+  //       for (const t of videoTracks) {
+  //         try {
+  //           console.log("🗑️ Removing video track from preview:", t.id);
+  //           t.stop();
+  //           ms.removeTrack(t);
+  //         } catch (err) {
+  //           console.error("❌ Error stopping local preview track:", err);
+  //         }
+  //       }
+  //       console.log("✅ Local preview cleaned up");
+  //     }
+  //   } else {
+  //     console.log("✅ CAMERA ON - Preserving video track for next connection");
+  //     if (!currentVideoTrackRef.current || currentVideoTrackRef.current.readyState === "ended") {
+  //       console.log("⚠️ Current video track not available, will create new one");
+  //     } else {
+  //       console.log("📹 Video track available:", currentVideoTrackRef.current.id);
+  //     }
+  //   }
+
+  //   // Return to lobby with appropriate status message
+  //   setLobby(true);
+  //   if (reason === "partner-left") {
+  //     setStatus("Partner left. Finding a new match…");
+  //   } else {
+  //     setStatus("Searching for your next match…");
+  //   }
+    
+  //   console.log("🔄 HANDLE_NEXT_CONNECTION END - States preserved:", { camOn: currentCamState, micOn: currentMicState });
+  // }
+
   function handleNextConnection(currentCamState: boolean, currentMicState: boolean, reason: "next" | "partner-left" = "next") {
     console.log("🔄 HANDLE_NEXT_CONNECTION START:", { currentCamState, currentMicState, reason });
     
-    // Clean up peer connections but preserve local tracks and states
+    // Clean up peer connections
     try {
       if (sendingPcRef.current) {
         try {
@@ -1376,11 +1594,10 @@ export default function Room({
       console.error("Error in peer connection cleanup:", err);
     }
     
-    // Clear peer connection refs
     sendingPcRef.current = null;
     receivingPcRef.current = null;
 
-    // Clean up remote stream only
+    // Clean up remote stream
     if (remoteStreamRef.current) {
       try {
         const tracks = remoteStreamRef.current.getTracks();
@@ -1397,10 +1614,8 @@ export default function Room({
       }
     }
     
-    // Reset remote stream
     remoteStreamRef.current = new MediaStream();
     
-    // Clear remote video elements
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
       try {
@@ -1414,19 +1629,16 @@ export default function Room({
       } catch {}
     }
 
-    // Reset peer states but keep our local states (micOn, camOn, screenShareOn)
     setShowChat(false);
     setPeerMicOn(true);
     setPeerCamOn(true);
     setPeerScreenShareOn(false);
-
-    // Clear video sender ref so new connection can set it up properly
     videoSenderRef.current = null;
 
-    // If camera is OFF, ensure we clean up any existing video track immediately
+    // FIX: Always clean up video track if camera is OFF
+    // This ensures the track matches the state
     if (!currentCamState) {
       console.log("🚫 CAMERA OFF - Cleaning up video tracks");
-      console.log("📹 Current video track exists:", !!currentVideoTrackRef.current);
       
       if (currentVideoTrackRef.current) {
         try {
@@ -1439,7 +1651,6 @@ export default function Room({
         }
       }
       
-      // Also clean up local video preview to match the off state
       if (localVideoRef.current && localVideoRef.current.srcObject) {
         const ms = localVideoRef.current.srcObject as MediaStream;
         const videoTracks = ms.getVideoTracks();
@@ -1456,16 +1667,12 @@ export default function Room({
         }
         console.log("✅ Local preview cleaned up");
       }
-    } else {
-      console.log("✅ CAMERA ON - Preserving video track for next connection");
-      if (!currentVideoTrackRef.current || currentVideoTrackRef.current.readyState === "ended") {
-        console.log("⚠️ Current video track not available, will create new one");
-      } else {
-        console.log("📹 Video track available:", currentVideoTrackRef.current.id);
-      }
     }
+    
+    // FIX: Update the UI state to match actual state
+    setCamOn(currentCamState);
+    setMicOn(currentMicState);
 
-    // Return to lobby with appropriate status message
     setLobby(true);
     if (reason === "partner-left") {
       setStatus("Partner left. Finding a new match…");
@@ -1909,3 +2116,5 @@ const handleNext = () => {
     </div>
   );
 }
+
+
