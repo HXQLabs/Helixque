@@ -86,11 +86,6 @@ export default function Room({
     }
     if (localVideoTrack) {
       localVideoTrack.enabled = camOn;
-      if (!camOn) {
-        // Stop the track if camera should be off
-        localVideoTrack.stop();
-        currentVideoTrackRef.current = null;
-      }
     }
   }, []);
 
@@ -842,13 +837,10 @@ export default function Room({
 
       // Add initial local tracks based on state
       console.log(`🎥 Caller track setup - camOn: ${camOn}, micOn: ${micOn}`);
-      if (localAudioTrack && localAudioTrack.readyState === "live" && micOn) {
-        localAudioTrack.enabled = true;
+      if (localAudioTrack && localAudioTrack.readyState === "live") {
+        localAudioTrack.enabled = micOn;
         pc.addTrack(localAudioTrack);
         console.log("Added local audio track to caller PC");
-      } else if (localAudioTrack && !micOn) {
-        localAudioTrack.enabled = false;
-        console.log("Audio track disabled per initial state");
       }
       
       // Handle video track - ensure we have a fresh track if camera is on
@@ -1006,13 +998,10 @@ export default function Room({
 
       // Add initial local tracks based on state
       console.log(`🎥 Answerer track setup - camOn: ${camOn}, micOn: ${micOn}`);
-      if (localAudioTrack && localAudioTrack.readyState === "live" && micOn) {
-        localAudioTrack.enabled = true;
+      if (localAudioTrack && localAudioTrack.readyState === "live") {
+        localAudioTrack.enabled = micOn;
         pc.addTrack(localAudioTrack);
         console.log("Added local audio track to answerer PC");
-      } else if (localAudioTrack && !micOn) {
-        localAudioTrack.enabled = false;
-        console.log("Audio track disabled per initial state");
       }
       
       // Handle video track - ensure we have a fresh track if camera is on
