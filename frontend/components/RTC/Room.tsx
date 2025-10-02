@@ -1007,6 +1007,11 @@ if (camOn) {  // Use the state variable directly
     s.on("offer", async ({ roomId: rid, sdp: remoteSdp }) => {
       setRoomId(rid);
       s.emit("chat:join", { roomId: rid, name });
+      s.emit("media-state-change", {
+  isScreenSharing: screenShareOn,
+  micOn: micOn,
+  camOn: camOn
+});
       setLobby(false);
       setStatus("Connecting…");
       
