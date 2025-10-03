@@ -413,99 +413,124 @@ export default function Room({
 // }
 
   const toggleCam = async () => {
-    const turningOn = !camOn;
-    setCamOn(turningOn);
-
+    const newCamState = !camOn;
+    
     try {
       const pc = sendingPcRef.current || receivingPcRef.current;
 
-      if (turningOn) {
-        // (Re)acquire a real camera track
+      if (newCamState) {
+        // Turning camera ON
+        console.log("🔄 Turning camera ON");
+        
+        // Check if we already have a valid track
         let track = currentVideoTrackRef.current;
-        if (!track || track.readyState === "ended") {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        let needsNewTrack = !track || track.readyState === "ended";
+        
+        if (needsNewTrack) {
+          console.log("🎥 Acquiring new camera track...");
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: true 
+          });
           track = stream.getVideoTracks()[0];
           currentVideoTrackRef.current = track;
+          console.log("✅ Acquired new camera track:", track.id);
         }
 
-        // Update local PiP stream
+        // Update local preview
         if (localVideoRef.current) {
-          const ms =
-            (localVideoRef.current.srcObject as MediaStream) || new MediaStream();
-          if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = ms;
-          ms.getVideoTracks().forEach((t) => ms.removeTrack(t));
-          ms.addTrack(track);
-          await localVideoRef.current.play().catch(() => {});
+          console.log("🔄 Updating local preview");
+          const ms = new MediaStream();
+          ms.addTrack(track!);
+          localVideoRef.current.srcObject = ms;
+          await localVideoRef.current.play().catch(console.error);
         }
 
-        // Resume sending to peer
-        if (videoSenderRef.current) {
-          await videoSenderRef.current.replaceTrack(track);
-        } else if (pc) {
-          // No video sender exists, add the track and create sender
-          const sender = pc.addTrack(track);
-          videoSenderRef.current = sender;
-          console.log("Added new video track to existing connection");
-          
-          // If we're adding a track to an existing connection, we might need to renegotiate
-          if (sendingPcRef.current === pc) {
-            // We're the caller, create new offer
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socketRef.current?.emit("renegotiate-offer", { 
-              roomId, 
-              sdp: offer, 
-              role: "caller" 
-            });
-            console.log("📤 Sent renegotiation offer for camera turn on");
+        // Update peer connection
+        if (pc) {
+          if (videoSenderRef.current) {
+            console.log("🔄 Replacing video track in existing sender");
+            await videoSenderRef.current.replaceTrack(track!);
+          } else {
+            console.log("🔄 Adding new video track to peer connection");
+            const sender = pc.addTrack(track!);
+            videoSenderRef.current = sender;
+            
+            // If we're the caller, we need to renegotiate
+            if (sendingPcRef.current === pc) {
+              console.log("📤 Initiating renegotiation for camera ON");
+              try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socketRef.current?.emit("renegotiate-offer", { 
+                  roomId, 
+                  sdp: offer, 
+                  role: "caller" 
+                });
+              } catch (err) {
+                console.error("Error during renegotiation:", err);
+              }
+            }
           }
         }
       } else {
-        // Turn OFF: stop sending and immediately stop the camera
+        // Turning camera OFF
+        console.log("🔄 Turning camera OFF");
+        
+        // Stop sending video to peer
         if (videoSenderRef.current) {
+          console.log("🛑 Replacing video track with null");
           await videoSenderRef.current.replaceTrack(null);
         }
 
-        // Immediately stop all video tracks to turn off camera LED
+        // Stop and clean up the current video track
         const track = currentVideoTrackRef.current;
         if (track) {
+          console.log("🛑 Stopping camera track");
           try {
-            // Ensure we stop the track immediately to turn off the camera LED
             track.stop();
-            console.log("Camera track stopped");
           } catch (err) {
             console.error("Error stopping camera track:", err);
           }
           currentVideoTrackRef.current = null;
         }
 
-        // Also stop any video tracks in the local preview
-        if (localVideoRef.current && localVideoRef.current.srcObject) {
+        // Clean up local preview
+        if (localVideoRef.current?.srcObject) {
+          console.log("🧹 Cleaning up local preview");
           const ms = localVideoRef.current.srcObject as MediaStream;
-          const videoTracks = ms.getVideoTracks();
-          for (const t of videoTracks) {
+          ms.getVideoTracks().forEach(t => {
             try {
-              t.stop(); // Make sure we stop each track
+              t.stop();
               ms.removeTrack(t);
             } catch (err) {
-              console.error("Error stopping local preview track:", err);
+              console.error("Error stopping preview track:", err);
             }
-          }
-          // leave audio track (if any) untouched
+          });
+          localVideoRef.current.srcObject = null;
         }
         
-        // If we have any other video tracks anywhere, stop them too
+        // Clear any other video tracks
         if (localVideoTrack) {
           try {
             localVideoTrack.stop();
           } catch {}
         }
       }
+      
+      // Update the state after everything is done
+      setCamOn(newCamState);
+      
+      // Notify peer about the state change
+      socketRef.current?.emit("media-state-change", { video: newCamState });
+      console.log(`✅ Camera turned ${newCamState ? 'ON' : 'OFF'}`);
+      
     } catch (e: any) {
-      console.error("toggleCam error", e);
+      console.error("❌ toggleCam error:", e);
       toast.error("Camera Error", {
         description: e?.message || "Failed to toggle camera"
       });
+      // Revert state on error
+      setCamOn(!newCamState);
     }
   };
 
@@ -1476,30 +1501,64 @@ export default function Room({
     console.log("🔄 HANDLE_NEXT_CONNECTION END - States preserved:", { camOn: currentCamState, micOn: currentMicState });
   }
 
-const handleNext = () => {
+const handleNext = async () => {
     const s = socketRef.current;
     if (!s) return;
 
-    // Get the actual current states - check if we have active tracks, not just the state variables
-    const actualCamState = !!(currentVideoTrackRef.current && currentVideoTrackRef.current.readyState === "live" && camOn);
-    const actualMicState = !!(localAudioTrack && localAudioTrack.readyState === "live" && micOn);
+    // Store the current camera state before cleaning up
+    const wasCameraOn = camOn && currentVideoTrackRef.current?.readyState === 'live';
+    const wasMicOn = micOn && localAudioTrack?.readyState === 'live';
     
     console.log("🔄 handleNext called - State check:");
-    console.log("   - camOn state:", camOn);
-    console.log("   - currentVideoTrack exists:", !!currentVideoTrackRef.current);
-    console.log("   - currentVideoTrack readyState:", currentVideoTrackRef.current?.readyState);
-    console.log("   - actual cam state:", actualCamState);
-    console.log("   - actual mic state:", actualMicState);
+    console.log("   - Current camOn state:", camOn);
+    console.log("   - Current video track exists:", !!currentVideoTrackRef.current);
+    console.log("   - Current video track state:", currentVideoTrackRef.current?.readyState);
+    console.log("   - Camera was on:", wasCameraOn);
+    console.log("   - Mic was on:", wasMicOn);
 
-    // Clear current remote media immediately for snappy UX
+    // Clean up existing connections and tracks
+    teardownPeers("next");
+    stopProvidedTracks();
+    detachLocalPreview();
+
+    // Clear remote media
     try {
       remoteStreamRef.current?.getTracks().forEach((t) => t.stop());
     } catch {}
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
 
+    // If camera was on, reinitialize it before the next connection
+    if (wasCameraOn) {
+      try {
+        console.log("🔄 Reinitializing camera for next connection...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+        
+        const [newVideoTrack] = stream.getVideoTracks();
+        if (newVideoTrack) {
+          // Update the current video track reference
+          currentVideoTrackRef.current = newVideoTrack;
+          
+          // Update the local video element
+          if (localVideoRef.current) {
+            const newStream = new MediaStream([newVideoTrack]);
+            localVideoRef.current.srcObject = newStream;
+            await localVideoRef.current.play().catch(console.error);
+          }
+          
+          console.log("✅ Camera reinitialized for next connection");
+        }
+      } catch (err) {
+        console.error("❌ Error reinitializing camera:", err);
+        setCamOn(false);
+      }
+    }
+
     s.emit("queue:next");
-    handleNextConnection(actualCamState, actualMicState, "next"); // Pass actual states based on track availability
+    handleNextConnection(wasCameraOn, wasMicOn, "next");
   };
 
 
