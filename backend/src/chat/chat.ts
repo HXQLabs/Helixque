@@ -6,7 +6,27 @@ export function joinChatRoom(socket: Socket, roomId: string, name: string) {
   if (!roomId) return;
   const room = `chat:${roomId}`;
   socket.join(room);
-  socket.nsp.in(room).emit("chat:system", { text: `${name} joined the chat`, ts: Date.now() });
+
+  // --- FIX: prevent duplicate join messages ---
+  const clients = socket.nsp.adapter.rooms.get(room);
+
+  let alreadyJoined = false;
+  if (clients) {
+    for (const clientId of clients) {
+      const clientSocket = socket.nsp.sockets.get(clientId);
+      if (clientSocket && clientSocket.data?.name === name) {
+        alreadyJoined = true;
+        break;
+      }
+    }
+  }
+
+  // store name for later identification
+  socket.data.name = name;
+
+  if (!alreadyJoined) {
+    socket.nsp.in(room).emit("chat:system", { text: `${name} joined the chat`, ts: Date.now() });
+  }
 }
 
 export function wireChat(io: Server, socket: Socket) {
