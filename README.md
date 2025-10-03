@@ -42,6 +42,8 @@ We’re continuously enhancing Helixque, evolving it into a dynamic platform. Ne
 
 **Random Connect with Professionals** – meet and network with professionals from various fields instantly, expanding your connections effortlessly.
 
+**Unlimited Skips** - there is no limit for the user to skip the calls.
+
 ---
 
 ## Frontend

@@ -1,6 +1,8 @@
 import { Socket } from "socket.io";
 import { RoomManager } from "./RoomManager";
 
+const QUEUE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
 export interface User {
   socket: Socket;
   name: string;
@@ -18,6 +20,9 @@ export class UserManager {
   private online: Set<string>;
   private roomOf: Map<string, string>; // chat/match room id per user
 
+  private queueEntryTime: Map<string, number>;
+  private timeoutIntervals: Map<string, NodeJS.Timeout>;
+
   private roomManager: RoomManager;
 
   constructor() {
@@ -29,6 +34,8 @@ export class UserManager {
     this.partnerOf = new Map();
     this.online = new Set();
     this.roomOf = new Map();
+    this.queueEntryTime = new Map();
+    this.timeoutIntervals = new Map();
   }
 
   // accepts optional meta; safe to call as addUser(name, socket)
@@ -39,6 +46,7 @@ export class UserManager {
     // join queue immediately (kept from your original flow)
     if (!this.queue.includes(socket.id)) {
       this.queue.push(socket.id);
+      this.startQueueTimeout(socket.id);
     }
 
     socket.emit("lobby");
@@ -56,6 +64,9 @@ export class UserManager {
 
     // clean presence
     this.online.delete(socketId);
+
+    // clean timeout tracking
+    this.clearQueueTimeout(socketId);
 
     // if they were in a room/paired, handle like leave
     this.handleLeave(socketId, "explicit-remove");
@@ -92,6 +103,55 @@ export class UserManager {
 
   count() {
     return this.users.length;
+  }
+
+  private startQueueTimeout(socketId: string) {
+    console.log(`[TIMEOUT] Starting timeout for socket: ${socketId}, timeout: ${QUEUE_TIMEOUT_MS}ms`);
+    this.clearQueueTimeout(socketId);
+    
+    this.queueEntryTime.set(socketId, Date.now());
+    
+    const timeout = setTimeout(() => {
+      this.handleQueueTimeout(socketId);
+    }, QUEUE_TIMEOUT_MS);
+    
+    this.timeoutIntervals.set(socketId, timeout);
+  }
+
+  private clearQueueTimeout(socketId: string) {
+    const timeout = this.timeoutIntervals.get(socketId);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.timeoutIntervals.delete(socketId);
+    }
+    this.queueEntryTime.delete(socketId);
+  }
+
+  private handleQueueTimeout(socketId: string) {
+    console.log(`[TIMEOUT] Handling timeout for socket: ${socketId}`);
+    const user = this.users.find(u => u.socket.id === socketId);
+    if (!user || !this.online.has(socketId) || !this.queue.includes(socketId)) {
+      console.log(`[TIMEOUT] User not found, offline, or not in queue:`, { 
+        user: !!user, 
+        online: this.online.has(socketId), 
+        inQueue: this.queue.includes(socketId) 
+      });
+      return;
+    }
+
+    console.log(`[TIMEOUT] Emitting timeout event to user: ${socketId}`);
+    try {
+      user.socket.emit("queue:timeout", {
+        message: "We couldn't find a match right now. Please try again later.",
+        waitTime: Date.now() - (this.queueEntryTime.get(socketId) || Date.now())
+      });
+      console.log(`[TIMEOUT] Successfully emitted timeout event`);
+    } catch (error) {
+      console.error("Failed to emit queue:timeout:", error);
+    }
+    
+    this.queue = this.queue.filter(id => id !== socketId);
+    this.clearQueueTimeout(socketId);
   }
 
   // ---------- MATCHING / QUEUE (your logic kept intact) ----------
@@ -140,6 +200,10 @@ export class UserManager {
 
     // remove both from queue for pairing
     this.queue = this.queue.filter((x) => x !== id1 && x !== id2);
+
+    // clear timeouts for matched users
+    this.clearQueueTimeout(id1);
+    this.clearQueueTimeout(id2);
 
     // create room and remember links
     const roomId = this.roomManager.createRoom(user1, user2);
@@ -267,7 +331,17 @@ export class UserManager {
     socket.on("queue:leave", () => {
       // user wants to leave matching; remove from queue and clean links
       this.queue = this.queue.filter((x) => x !== socket.id);
+      this.clearQueueTimeout(socket.id);
       this.handleLeave(socket.id, "leave-button");
+    });
+
+    socket.on("queue:retry", () => {
+      if (!this.queue.includes(socket.id) && this.online.has(socket.id)) {
+        this.queue.push(socket.id);
+        this.startQueueTimeout(socket.id);
+        socket.emit("queue:waiting");
+        this.clearQueue();
+      }
     });
 
     socket.on("disconnect", () => {

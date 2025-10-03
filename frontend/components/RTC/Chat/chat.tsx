@@ -91,7 +91,7 @@ export default function ChatPanel({
     };
 
     const onTyping = ({ from, typing }: { from: string; typing: boolean }) => {
-      setPeerTyping(typing ? `${from} is typing…` : null);
+      setPeerTyping(typing ? `Peer is typing…` : null);
       if (typing) {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => setPeerTyping(null), 3000);
@@ -177,7 +177,7 @@ export default function ChatPanel({
                   <span>{m.text}</span>
                 ) : (
                   <>
-                    {!mine && <div className="text-[10px] text-white/60 mb-1">{m.from}</div>}
+                    {!mine && <div className="text-[10px] text-white/60 mb-1">Peer</div>}
                     <div>{m.text}</div>
                   </>
                 )}

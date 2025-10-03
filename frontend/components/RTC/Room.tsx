@@ -11,7 +11,7 @@ import {
   IconPhoneOff,
   IconScreenShare,
   IconScreenShareOff,
-  IconPlayerSkipForward,
+  IconUserOff,
   IconRefresh,
   IconMessage,
   IconX,
@@ -22,17 +22,22 @@ import {
 import { useRouter } from "next/navigation";
 import ChatPanel from "./Chat/chat"; // ← adjust path if different
 
-// const URL = process.env.BACKEND_URI;
-const URL = process.env.BACKEND_URI || "https://poc-v2-1.onrender.com";
+const URL = process.env.BACKEND_URI || "http://localhost:5001";
 
 export default function Room({
   name,
   localAudioTrack,
   localVideoTrack,
+  audioOn,
+  videoOn,
+  onLeave,
 }: {
   name: string;
   localAudioTrack: MediaStreamTrack | null;
   localVideoTrack: MediaStreamTrack | null;
+  audioOn?: boolean;
+  videoOn?: boolean;
+  onLeave?: () => void;
 }) {
   const router = useRouter();
 
@@ -43,9 +48,35 @@ export default function Room({
 
   const [lobby, setLobby] = useState(true);
   const [status, setStatus] = useState<string>("Waiting to connect you to someone…");
+  const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
+  const [timeoutMessage, setTimeoutMessage] = useState("");
 
-  const [micOn, setMicOn] = useState(true);
-  const [camOn, setCamOn] = useState(true);
+  const handleRetryMatchmaking = () => {
+    if (socketRef.current) {
+      socketRef.current.emit("queue:retry");
+      setShowTimeoutAlert(false);
+      setStatus("Searching for the best match…");
+    }
+  };
+
+  const handleCancelTimeout = () => {
+    if (socketRef.current) {
+      socketRef.current.emit("queue:leave");
+    }
+    setShowTimeoutAlert(false);
+    setLobby(false);
+    setStatus("Search paused. Click Try Again to rejoin the queue.");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      handleCancelTimeout();
+    }
+  };
+
+  // Initialize mic/cam states from props (DeviceCheck) when available.
+  const [micOn, setMicOn] = useState<boolean>(typeof audioOn === "boolean" ? audioOn : true);
+  const [camOn, setCamOn] = useState<boolean>(typeof videoOn === "boolean" ? videoOn : true);
   const [screenShareOn, setScreenShareOn] = useState(false);
 
   
@@ -64,6 +95,7 @@ export default function Room({
 
   // socket/pc refs
   const socketRef = useRef<Socket | null>(null);
+  const peerIdRef = useRef<string | null>(null);
   const sendingPcRef = useRef<RTCPeerConnection | null>(null);
   const receivingPcRef = useRef<RTCPeerConnection | null>(null);
   const joinedRef = useRef(false);
@@ -768,6 +800,7 @@ export default function Room({
     s.connect();
 
     s.on("connect", () => {
+      console.log("[FRONTEND] Socket connected to:", URL);
       setMySocketId(s.id ?? null);
       if (!joinedRef.current) {
         joinedRef.current = true;
@@ -923,6 +956,9 @@ export default function Room({
         }
       };
 
+      // record peer id if available on offer (for reporting)
+      peerIdRef.current = rid || peerIdRef.current;
+
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
@@ -1022,6 +1058,9 @@ export default function Room({
 
       await pc.setRemoteDescription(new RTCSessionDescription(remoteSdp));
 
+  // capture peer id reference if provided
+  peerIdRef.current = rid || peerIdRef.current;
+
       ensureRemoteStream();
       pc.ontrack = (e) => {
         console.log("🎯 Answerer received track event!");
@@ -1094,6 +1133,12 @@ export default function Room({
       await pc.setRemoteDescription(new RTCSessionDescription(remoteSdp));
     });
 
+    // Also capture any peer identifiers from media-state events
+    s.on("peer-media-state-change", ({ userId, from }: any) => {
+      if (userId) peerIdRef.current = userId;
+      else if (from) peerIdRef.current = from;
+    });
+
     // trickle ICE
     s.on("add-ice-candidate", async ({ candidate, type }) => {
       try {
@@ -1130,12 +1175,21 @@ export default function Room({
 
     // lobby / searching
     s.on("lobby", () => {
+      console.log("[FRONTEND] Received lobby event - user added to queue");
       setLobby(true);
       setStatus("Waiting to connect you to someone…");
     });
     s.on("queue:waiting", () => {
       setLobby(true);
       setStatus("Searching for the best match…");
+    });
+
+    s.on("queue:timeout", ({ message }: { message: string }) => {
+      console.log("[FRONTEND] Received queue:timeout event:", { message });
+      setTimeoutMessage(message);
+      setShowTimeoutAlert(true);
+      setLobby(true);
+      setStatus("No match found. Try again?");
     });
 
     // partner left
@@ -1247,6 +1301,7 @@ export default function Room({
       s.off("renegotiate-answer");
       s.off("lobby");
       s.off("queue:waiting");
+      s.off("queue:timeout");
       s.off("partner:left");
       s.off("peer:media-state");
       s.off("media:mic");
@@ -1450,29 +1505,77 @@ const handleNext = () => {
 
   const handleLeave = () => {
     const s = socketRef.current;
+
     try {
+      // inform server we're leaving the queue/room
       s?.emit("queue:leave");
-    } catch {}
-    
+    } catch (e) {
+      // ignore
+    }
+
     // Stop screenshare if active
     if (screenShareOn) {
       if (currentScreenShareTrackRef.current) {
-        currentScreenShareTrackRef.current.stop();
+        try {
+          currentScreenShareTrackRef.current.stop();
+        } catch {}
       }
       if (localScreenShareStreamRef.current) {
-        localScreenShareStreamRef.current.getTracks().forEach(t => t.stop());
+        try {
+          localScreenShareStreamRef.current.getTracks().forEach(t => t.stop());
+        } catch {}
       }
     }
-    
+
+    // Teardown peers and local preview/tracks
     teardownPeers("teardown");
     stopProvidedTracks();
     detachLocalPreview();
-    router.push("/");
+
+    // Make sure socket is fully disconnected so server won't place us back
+    try {
+      s?.disconnect();
+    } catch {}
+    socketRef.current = null;
+
+    // Prefer redirecting to device check so user can rejoin or change devices.
+    // Use replace so the browser history doesn't keep the room entry.
+    try {
+      router.replace(`/match`);
+    } catch (e) {
+      // fallback to home
+      try {
+        router.replace(`/`);
+      } catch {}
+    }
+
+    // notify parent that we left so parent can unmount Room (clears `joined` in DeviceCheck)
+    try {
+      onLeave?.();
+    } catch {}
   };
 
   const handleRecheck = () => {
     setLobby(true);
     setStatus("Rechecking…");
+  };
+
+  const handleReport = (reason?: string) => {
+    const s = socketRef.current;
+    const reporter = mySocketId || s?.id || null;
+    const reported = peerIdRef.current || null;
+    try {
+      if (s && reporter) {
+        // client-side emit; server may or may not handle it depending on setup
+        s.emit("report", { reporterId: reporter, reportedId: reported, roomId, reason });
+        toast.success("Report submitted", { description: "Thank you. We received your report." });
+      } else {
+        toast.error("Report failed", { description: "Could not submit report (no socket)." });
+      }
+    } catch (e) {
+      console.error("report emit error", e);
+      try { toast.error("Report failed", { description: "An error occurred." }); } catch {}
+    }
   };
 
   // --- UI -------------------------------------------------------------------
@@ -1724,7 +1827,7 @@ const handleNext = () => {
               className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
               title="Next match"
             >
-              <IconPlayerSkipForward className="h-5 w-5" />
+              <IconUserOff className="h-5 w-5" />
             </button>
 
             <button
@@ -1751,7 +1854,7 @@ const handleNext = () => {
               </button>
               
               <button
-                onClick={() => {/* Add report functionality */}}
+                onClick={() => handleReport()}
                 className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
                 title="Report user"
               >
@@ -1761,6 +1864,48 @@ const handleNext = () => {
           </div>
         </div>
       </div>
+
+      {showTimeoutAlert && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" 
+          role="dialog" 
+          aria-modal="true" 
+          aria-labelledby="timeout-title"
+          onKeyDown={handleKeyDown}
+        >
+          <div className="mx-4 max-w-md rounded-2xl bg-neutral-900 border border-white/10 p-6 shadow-2xl">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-600/20">
+                <IconFlag className="h-6 w-6 text-orange-400" />
+              </div>
+              
+              <h3 id="timeout-title" className="mb-2 text-lg font-semibold text-white">
+                No Match Found
+              </h3>
+              
+              <p className="mb-6 text-sm text-neutral-400">
+                {timeoutMessage || "We couldn't find a match right now. Please try again later."}
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={handleRetryMatchmaking}
+                  className="flex-1 rounded-xl bg-white text-black px-4 py-2 font-medium hover:bg-white/90 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+                  autoFocus
+                >
+                  Try Again
+                </button>
+                <button
+                  onClick={handleCancelTimeout}
+                  className="flex-1 rounded-xl border border-white/20 bg-transparent text-white px-4 py-2 font-medium hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

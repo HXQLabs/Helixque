@@ -1,10 +1,10 @@
 import Image from "next/image";
+import MatchPage from "./match/page";
 
 export default function Home() {
   return (
-        <h1 className="text-3xl font-bold underline">
-      Hello world!
-    </h1>
-
+        <div>
+          <MatchPage />
+        </div>
   );
 }

@@ -10,13 +10,35 @@ Thank you for your interest in contributing to Helixque! This document provides 
    This helps the project grow and shows your support.  
 
 2. **Join our Discord server** for discussions, questions, and faster PR approvals:  
-   👉 [Join the Discord Server](https://discord.gg/UJfWXRYe)  
+   👉 [Join the Discord Server](https://discord.gg/dQUh6SY9Uk)
 
    ⚠️ Please note: To quickly get your PRs reviewed and merged, you must be a member of our Discord server.  
 
 3. **Pull Request Policy on Discord**  
    - Before raising a PR, **check the `#pull-request` channel** to ensure there isn’t already an open PR for the same issue.  
-   - If no one is working on it, go ahead and raise your PR and mention it in the channel.  
+   - If no one is working on it, go ahead and raise your PR and mention it in the channel.
+  
+4. **sign up in helixque https://helixque.netlify.app/**
+
+---
+
+### Keeping Your Branch Up-to-Date
+
+Please ensure your local branch is **synced with the latest  `develop` branch** before making changes or opening a Pull Request (PR).  
+This helps avoid unnecessary merge conflicts and ensures a smooth review process.
+
+⚠️**Note**:
+- 🚀 Please raise PRs **only to the `develop` branch**.  
+- 📷 For faster reviews and merges, include a **recording or screenshot** (depending on the issue) that demonstrates the fix.  
+- 🏗️ Before opening a PR, run `npm run build` and ensure the project builds successfully **without errors**.  
+- ✅ Only raise a PR once the build passes.  
+- 🔗 When raising the PR, please **reference the issue number** it addresses.  
+
+
+### Merge Conflicts
+
+- Project maintainers are **not responsible** if your PR is blocked due to merge conflicts.  
+- It is **your responsibility** to update your branch and resolve conflicts before requesting a merge.
 
 ---
 
