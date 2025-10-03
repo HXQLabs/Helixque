@@ -21,6 +21,7 @@ import {
 } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import ChatPanel from "./Chat/chat"; // ← adjust path if different
+import Tooltip from "../ui/Tooltip";
 
 const URL = process.env.BACKEND_URI || "http://localhost:5001";
 
@@ -1604,7 +1605,9 @@ const handleNext = () => {
                   />
                   {!camOn && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black">
-                      <IconUser className="h-8 w-8 text-white/70" />
+                      <Tooltip content="Your camera is turned off" position="bottom">
+                        <IconUser className="h-8 w-8 text-white/70 cursor-help" />
+                      </Tooltip>
                     </div>
                   )}
                   <div className="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-1 text-xs">
@@ -1622,7 +1625,9 @@ const handleNext = () => {
                   />
                   {!peerCamOn && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black">
-                      <IconUser className="h-8 w-8 text-white/70" />
+                      <Tooltip content="Peer's camera is turned off" position="bottom">
+                        <IconUser className="h-8 w-8 text-white/70 cursor-help" />
+                      </Tooltip>
                     </div>
                   )}
                   <div className="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-1 text-xs">
@@ -1654,10 +1659,12 @@ const handleNext = () => {
                   />
                 )}
                 <div className="absolute bottom-4 left-4 rounded-md bg-black/60 px-3 py-2 text-sm">
-                  <span className="flex items-center gap-2">
-                    <IconScreenShare className="h-4 w-4" />
-                    {screenShareOn ? "Your Screen Share" : "Peer's Screen Share"}
-                  </span>
+                  <Tooltip content={screenShareOn ? "You are sharing your screen" : "Peer is sharing their screen"} position="top">
+                    <span className="flex items-center gap-2 cursor-help">
+                      <IconScreenShare className="h-4 w-4" />
+                      {screenShareOn ? "Your Screen Share" : "Peer's Screen Share"}
+                    </span>
+                  </Tooltip>
                 </div>
               </div>
             </div>
@@ -1696,7 +1703,9 @@ const handleNext = () => {
                   
                   {!peerCamOn && !lobby && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black">
-                      <IconUser className="h-12 w-12 text-white/70" />
+                      <Tooltip content="Peer's camera is turned off" position="bottom">
+                        <IconUser className="h-12 w-12 text-white/70 cursor-help" />
+                      </Tooltip>
                     </div>
                   )}
                   
@@ -1704,16 +1713,20 @@ const handleNext = () => {
                   <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md bg-black/60 px-2 py-1 text-xs">
                     <span>{lobby ? "—" : "Peer"}</span>
                     {!lobby && !peerMicOn && (
-                      <span className="ml-1 inline-flex items-center gap-1 rounded bg-red-600/80 px-1.5 py-0.5">
-                        <IconMicrophoneOff className="h-3 w-3" />
-                        <span>muted</span>
-                      </span>
+                      <Tooltip content="Peer has muted their microphone" position="top">
+                        <span className="ml-1 inline-flex items-center gap-1 rounded bg-red-600/80 px-1.5 py-0.5 cursor-help">
+                          <IconMicrophoneOff className="h-3 w-3" />
+                          <span>muted</span>
+                        </span>
+                      </Tooltip>
                     )}
                     {peerScreenShareOn && (
-                      <span className="ml-1 inline-flex items-center gap-1 rounded bg-blue-600/80 px-1.5 py-0.5">
-                        <IconScreenShare className="h-3 w-3" />
-                        <span>sharing</span>
-                      </span>
+                      <Tooltip content="Peer is sharing their screen" position="top">
+                        <span className="ml-1 inline-flex items-center gap-1 rounded bg-blue-600/80 px-1.5 py-0.5 cursor-help">
+                          <IconScreenShare className="h-3 w-3" />
+                          <span>sharing</span>
+                        </span>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
@@ -1738,7 +1751,9 @@ const handleNext = () => {
                   
                   {!camOn && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black">
-                      <IconUser className="h-12 w-12 text-white/70" />
+                      <Tooltip content="Your camera is turned off" position="bottom">
+                        <IconUser className="h-12 w-12 text-white/70 cursor-help" />
+                      </Tooltip>
                     </div>
                   )}
                   
@@ -1746,10 +1761,12 @@ const handleNext = () => {
                   <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md bg-black/60 px-2 py-1 text-xs">
                     <span>{name || "You"}</span>
                     {screenShareOn && (
-                      <span className="ml-1 inline-flex items-center gap-1 rounded bg-blue-600/80 px-1.5 py-0.5">
-                        <IconScreenShare className="h-3 w-3" />
-                        <span>sharing</span>
-                      </span>
+                      <Tooltip content="You are sharing your screen" position="top">
+                        <span className="ml-1 inline-flex items-center gap-1 rounded bg-blue-600/80 px-1.5 py-0.5 cursor-help">
+                          <IconScreenShare className="h-3 w-3" />
+                          <span>sharing</span>
+                        </span>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
@@ -1785,82 +1802,90 @@ const handleNext = () => {
         <div className="relative h-full flex items-center justify-center">
           {/* Bottom controls */}
           <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1.5 backdrop-blur">
-            <button
-              onClick={handleRecheck}
-              className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
-              title="Recheck"
-            >
-              <IconRefresh className="h-5 w-5" />
-            </button>
+            <Tooltip content="Recheck connection" position="top">
+              <button
+                onClick={handleRecheck}
+                className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+              >
+                <IconRefresh className="h-5 w-5" />
+              </button>
+            </Tooltip>
 
-            <button
-              onClick={toggleMic}
-              className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                micOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-              }`}
-              title={micOn ? "Turn off microphone" : "Turn on microphone"}
-            >
-              {micOn ? <IconMicrophone className="h-5 w-5" /> : <IconMicrophoneOff className="h-5 w-5" />}
-            </button>
+            <Tooltip content={micOn ? "Turn off microphone" : "Turn on microphone"} position="top">
+              <button
+                onClick={toggleMic}
+                className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
+                  micOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                }`}
+              >
+                {micOn ? <IconMicrophone className="h-5 w-5" /> : <IconMicrophoneOff className="h-5 w-5" />}
+              </button>
+            </Tooltip>
 
-            <button
-              onClick={toggleCam}
-              className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                camOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-              }`}
-              title={camOn ? "Turn off camera" : "Turn on camera"}
-            >
-              {camOn ? <IconVideo className="h-5 w-5" /> : <IconVideoOff className="h-5 w-5" />}
-            </button>
+            <Tooltip content={camOn ? "Turn off camera" : "Turn on camera"} position="top">
+              <button
+                onClick={toggleCam}
+                className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
+                  camOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                }`}
+              >
+                {camOn ? <IconVideo className="h-5 w-5" /> : <IconVideoOff className="h-5 w-5" />}
+              </button>
+            </Tooltip>
 
-            <button
-              onClick={toggleScreenShare}
-              className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                screenShareOn ? "bg-blue-600 hover:bg-blue-500" : "bg-white/10 hover:bg-white/20"
-              }`}
-              title={screenShareOn ? "Stop screen share" : "Start screen share"}
-            >
-              {screenShareOn ? <IconScreenShareOff className="h-5 w-5" /> : <IconScreenShare className="h-5 w-5" />}
-            </button>
+            <Tooltip content={screenShareOn ? "Stop screen share" : "Start screen share"} position="top">
+              <button
+                onClick={toggleScreenShare}
+                className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
+                  screenShareOn ? "bg-blue-600 hover:bg-blue-500" : "bg-white/10 hover:bg-white/20"
+                }`}
+              >
+                {screenShareOn ? <IconScreenShareOff className="h-5 w-5" /> : <IconScreenShare className="h-5 w-5" />}
+              </button>
+            </Tooltip>
 
-            <button
-              onClick={handleNext}
-              className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
-              title="Next match"
-            >
-              <IconUserOff className="h-5 w-5" />
-            </button>
+            <Tooltip content="Next match" position="top">
+              <button
+                onClick={handleNext}
+                className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+              >
+                <IconUserOff className="h-5 w-5" />
+              </button>
+            </Tooltip>
 
-            <button
-              onClick={handleLeave}
-              className="ml-1 mr-1 h-11 rounded-full bg-red-600 px-6 hover:bg-red-500 flex items-center justify-center gap-2"
-              title="Leave call"
-            >
-              <IconPhoneOff className="h-5 w-5" />
-              <span className="hidden sm:inline text-sm font-medium">Leave</span>
-            </button>
+            <Tooltip content="Leave call" position="top">
+              <button
+                onClick={handleLeave}
+                className="ml-1 mr-1 h-11 rounded-full bg-red-600 px-6 hover:bg-red-500 flex items-center justify-center gap-2"
+              >
+                <IconPhoneOff className="h-5 w-5" />
+                <span className="hidden sm:inline text-sm font-medium">Leave</span>
+              </button>
+            </Tooltip>
           </div>
 
           {/* Right side controls - positioned within controls area */}
           <div className="absolute right-6">
             <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1.5 backdrop-blur">
-              <button
-                onClick={() => setShowChat((v) => !v)}
-                className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                  showChat ? "bg-indigo-600 hover:bg-indigo-500" : "bg-white/10 hover:bg-white/20"
-                }`}
-                title={showChat ? "Close chat" : "Open chat"}
-              >
-                <IconMessage className="h-5 w-5" />
-              </button>
+              <Tooltip content={showChat ? "Close chat" : "Open chat"} position="top">
+                <button
+                  onClick={() => setShowChat((v) => !v)}
+                  className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
+                    showChat ? "bg-indigo-600 hover:bg-indigo-500" : "bg-white/10 hover:bg-white/20"
+                  }`}
+                >
+                  <IconMessage className="h-5 w-5" />
+                </button>
+              </Tooltip>
               
-              <button
-                onClick={() => handleReport()}
-                className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
-                title="Report user"
-              >
-                <IconFlag className="h-5 w-5" />
-              </button>
+              <Tooltip content="Report user" position="top">
+                <button
+                  onClick={() => handleReport()}
+                  className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                >
+                  <IconFlag className="h-5 w-5" />
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>

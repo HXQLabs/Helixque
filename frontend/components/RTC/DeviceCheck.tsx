@@ -10,6 +10,7 @@ import {
   IconRefresh,
   IconUser
 } from "@tabler/icons-react";
+import Tooltip from "../ui/Tooltip";
 
 export default function DeviceCheck() {
   const [name, setName] = useState("");
@@ -113,7 +114,9 @@ export default function DeviceCheck() {
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center bg-black">
-                    <IconUser className="h-16 w-16 text-white/70" />
+                    <Tooltip content="Camera is turned off" position="right">
+                      <IconUser className="h-16 w-16 text-white/70 cursor-help" />
+                    </Tooltip>
                   </div>
                 )}
                 
@@ -123,10 +126,12 @@ export default function DeviceCheck() {
                     <span>{name || "You"}</span>
                   </div>
                   {!audioOn && (
-                    <span className="inline-flex items-center gap-1 rounded bg-red-600/80 px-1.5 py-0.5 text-xs text-white">
-                      <IconMicrophoneOff className="h-3 w-3" />
-                      <span>muted</span>
-                    </span>
+                    <Tooltip content="Microphone is muted" position="top">
+                      <span className="inline-flex items-center gap-1 rounded bg-red-600/80 px-1.5 py-0.5 text-xs text-white cursor-help">
+                        <IconMicrophoneOff className="h-3 w-3" />
+                        <span>muted</span>
+                      </span>
+                    </Tooltip>
                   )}
                 </div>
               </div>
@@ -134,33 +139,36 @@ export default function DeviceCheck() {
 
             {/* Control buttons below video */}
             <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => setAudioOn((a) => !a)}
-                className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                  audioOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-                }`}
-                title={audioOn ? "Turn off microphone" : "Turn on microphone"}
-              >
-                {audioOn ? <IconMicrophone className="h-5 w-5 text-white" /> : <IconMicrophoneOff className="h-5 w-5 text-white" />}
-              </button>
+              <Tooltip content={audioOn ? "Turn off microphone" : "Turn on microphone"} position="bottom">
+                <button
+                  onClick={() => setAudioOn((a) => !a)}
+                  className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
+                    audioOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                  }`}
+                >
+                  {audioOn ? <IconMicrophone className="h-5 w-5 text-white" /> : <IconMicrophoneOff className="h-5 w-5 text-white" />}
+                </button>
+              </Tooltip>
 
-              <button
-                onClick={() => setVideoOn((v) => !v)}
-                className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
-                  videoOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-                }`}
-                title={videoOn ? "Turn off camera" : "Turn on camera"}
-              >
-                {videoOn ? <IconVideo className="h-5 w-5 text-white" /> : <IconVideoOff className="h-5 w-5 text-white" />}
-              </button>
+              <Tooltip content={videoOn ? "Turn off camera" : "Turn on camera"} position="bottom">
+                <button
+                  onClick={() => setVideoOn((v) => !v)}
+                  className={`h-11 w-11 rounded-full flex items-center justify-center transition ${
+                    videoOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                  }`}
+                >
+                  {videoOn ? <IconVideo className="h-5 w-5 text-white" /> : <IconVideoOff className="h-5 w-5 text-white" />}
+                </button>
+              </Tooltip>
 
-              <button
-                onClick={getCam}
-                className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
-                title="Refresh devices"
-              >
-                <IconRefresh className="h-5 w-5 text-white" />
-              </button>
+              <Tooltip content="Refresh devices" position="bottom">
+                <button
+                  onClick={getCam}
+                  className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                >
+                  <IconRefresh className="h-5 w-5 text-white" />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
