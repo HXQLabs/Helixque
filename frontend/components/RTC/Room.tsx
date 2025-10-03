@@ -1,21 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import ChatPanel from "./Chat/chat";
 import VideoGrid from "./VideoGrid";
 import ControlBar from "./ControlBar";
 import TimeoutAlert from "./TimeoutAlert";
-import { useMediaState, usePeerState, useRoomState } from "./hooks";
 import { 
-  ensureRemoteStream, 
-  detachLocalPreview, 
-  stopProvidedTracks, 
-  teardownPeers,
-  toggleCameraTrack
-} from "./webrtc-utils";
+  useMediaState, 
+  usePeerState, 
+  useRoomState,
+} from "./hooks";
+import { detachLocalPreview, stopProvidedTracks } from "./webrtc-utils";
+import { useWebRTCConnection } from "./hooks/useWebRTCConnection";
+import { useMediaControls } from "./hooks/useMediaControls";
+import { useRoomActions } from "./hooks/useRoomActions";
+
 
 const URL = process.env.BACKEND_URI || "http://localhost:5001";
 
@@ -36,8 +37,6 @@ export default function Room({
   videoOn,
   onLeave,
 }: RoomProps) {
-  const router = useRouter();
-
   // Custom hooks for state management
   const mediaState = useMediaState(audioOn, videoOn);
   const peerState = usePeerState();
@@ -61,416 +60,51 @@ export default function Room({
   // socket/pc refs
   const socketRef = useRef<Socket | null>(null);
   const peerIdRef = useRef<string | null>(null);
-  const sendingPcRef = useRef<RTCPeerConnection | null>(null);
-  const receivingPcRef = useRef<RTCPeerConnection | null>(null);
   const joinedRef = useRef(false);
 
-  // video and screenshare refs
-  const videoSenderRef = useRef<RTCRtpSender | null>(null);
-  const currentVideoTrackRef = useRef<MediaStreamTrack | null>(localVideoTrack);
-  const currentScreenShareTrackRef = useRef<MediaStreamTrack | null>(null);
-  const localScreenShareStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
-  
-  // ICE candidate queues for handling candidates before remote description is set
-  const senderIceCandidatesQueue = useRef<RTCIceCandidate[]>([]);
-  const receiverIceCandidatesQueue = useRef<RTCIceCandidate[]>([]);
+  // Initialize WebRTC connection hook
+  const webrtcConnection = useWebRTCConnection({
+    localAudioTrack,
+    localVideoTrack,
+    micOn,
+    camOn,
+    peerScreenShareOn,
+    roomId
+  });
 
-  // Helper function for remote stream management
-  const ensureRemoteStreamLocal = () => {
-    if (!remoteStreamRef.current) {
-      remoteStreamRef.current = new MediaStream();
-    }
-    if (remoteVideoRef.current && !peerScreenShareOn) {
-      remoteVideoRef.current.srcObject = remoteStreamRef.current;
-    }
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = remoteStreamRef.current;
-    }
-    if (remoteScreenShareRef.current && peerScreenShareOn) {
-      remoteScreenShareRef.current.srcObject = remoteStreamRef.current;
-    }
-  };
-
-  // Helper function to process queued ICE candidates
-  const processQueuedIceCandidates = async (pc: RTCPeerConnection, queue: RTCIceCandidate[]) => {
-    while (queue.length > 0) {
-      const candidate = queue.shift();
-      if (candidate) {
-        try {
-          await pc.addIceCandidate(candidate);
-          console.log("Processed queued ICE candidate");
-        } catch (e) {
-          console.error("Error processing queued ICE candidate:", e);
-        }
-      }
-    }
-  };
-
-  // Helper for common PC setup
-  const setupPeerConnection = async (pc: RTCPeerConnection, isOffer: boolean, rid: string, socket: Socket) => {
-    videoSenderRef.current = null;
-    
-    if (localAudioTrack && localAudioTrack.readyState === "live" && micOn) {
-      pc.addTrack(localAudioTrack);
-    }
-    
-    if (camOn) {
-      let videoTrack = currentVideoTrackRef.current;
-      if (!videoTrack || videoTrack.readyState === "ended") {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          videoTrack = stream.getVideoTracks()[0];
-          currentVideoTrackRef.current = videoTrack;
-        } catch (err) {
-          console.error("Error creating video track:", err);
-          videoTrack = null;
-        }
-      }
-      
-      if (videoTrack && videoTrack.readyState === "live") {
-        const vs = pc.addTrack(videoTrack);
-        videoSenderRef.current = vs;
-      }
-    }
-
-    ensureRemoteStreamLocal();
-    pc.ontrack = (e) => {
-      console.log("🎯 Received track event!");
-      if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
-      if (e.track.kind === 'video') {
-        remoteStreamRef.current.getVideoTracks().forEach(track => 
-          remoteStreamRef.current?.removeTrack(track)
-        );
-      }
-      remoteStreamRef.current.addTrack(e.track);
-      ensureRemoteStreamLocal();
-    };
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        socket.emit("add-ice-candidate", { 
-          candidate: e.candidate, 
-          type: isOffer ? "sender" : "receiver", 
-          roomId: rid 
-        });
-      }
-    };
-  };
-
-  // ===== EVENT HANDLERS =====
-  const handleRetryMatchmaking = () => {
-    if (socketRef.current) {
-      socketRef.current.emit("queue:retry");
-      setShowTimeoutAlert(false);
-      setStatus("Searching for the best match…");
-    }
-  };
-
-  const handleCancelTimeout = () => {
-    if (socketRef.current) {
-      socketRef.current.emit("queue:leave");
-    }
-    setShowTimeoutAlert(false);
-    setLobby(false);
-    setStatus("Search paused. Click Try Again to rejoin the queue.");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      handleCancelTimeout();
-    }
-  };
-
-  const toggleMic = () => {
-    const on = !micOn;
-    setMicOn(on);
-    try {
-      if (localAudioTrack) localAudioTrack.enabled = on;
-    } catch {}
-  };
-
-  const toggleCam = async () => {
-    await toggleCameraTrack(
-      camOn,
-      setCamOn,
-      currentVideoTrackRef,
-      localVideoRef,
-      videoSenderRef,
-      sendingPcRef,
-      receivingPcRef,
-      roomId,
-      socketRef,
-      localVideoTrack
-    );
-  };
-
-  const toggleScreenShare = async () => {
-    const turningOn = !screenShareOn;
-    console.log("🖥️ Toggle screen share - turning:", turningOn ? "ON" : "OFF");
-    setScreenShareOn(turningOn);
-
-    try {
-      const socket = socketRef.current;
-
-      if (turningOn) {
-        try {
-          console.log("🎬 Starting screen capture...");
-          const screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true
-          });
-
-          const screenTrack = screenStream.getVideoTracks()[0];
-          currentScreenShareTrackRef.current = screenTrack;
-          localScreenShareStreamRef.current = screenStream;
-
-          if (localScreenShareRef.current) {
-            localScreenShareRef.current.srcObject = screenStream;
-            await localScreenShareRef.current.play().catch(() => {});
-          }
-
-          if (videoSenderRef.current) {
-            await videoSenderRef.current.replaceTrack(screenTrack);
-            toast.success("Screen Share Started", {
-              description: "You are now sharing your screen"
-            });
-          }
-
-          if (socket && roomId) {
-            socket.emit("media-state-change", {
-              isScreenSharing: true,
+  // Initialize media controls hook
+  const mediaControls = useMediaControls({
+    localAudioTrack,
+    localVideoTrack,
               micOn,
-              camOn: false
-            });
-          }
+    camOn,
+    screenShareOn,
+    setMicOn,
+    setCamOn,
+    setScreenShareOn,
+    currentVideoTrackRef: webrtcConnection.currentVideoTrackRef,
+    currentScreenShareTrackRef: webrtcConnection.currentScreenShareTrackRef,
+    localScreenShareStreamRef: webrtcConnection.localScreenShareStreamRef,
+    videoSenderRef: webrtcConnection.videoSenderRef,
+    sendingPcRef: webrtcConnection.sendingPcRef,
+    receivingPcRef: webrtcConnection.receivingPcRef,
+    localVideoRef,
+    localScreenShareRef,
+    roomId,
+    socket: socketRef.current
+  });
 
-          screenTrack.onended = async () => {
-            setScreenShareOn(false);
-            
-            let cameraTrack = currentVideoTrackRef.current;
-            if (!cameraTrack || cameraTrack.readyState === "ended") {
-              if (camOn) {
-                try {
-                  const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                  cameraTrack = cameraStream.getVideoTracks()[0];
-                  currentVideoTrackRef.current = cameraTrack;
-                } catch (err: any) {
-                  console.error("Error getting camera after screen share:", err);
-                  cameraTrack = null;
-                }
-              }
-            }
-            
-            if (videoSenderRef.current) {
-              await videoSenderRef.current.replaceTrack(camOn ? cameraTrack : null);
-            }
-
-            if (localScreenShareRef.current) {
-              localScreenShareRef.current.srcObject = null;
-            }
-            currentScreenShareTrackRef.current = null;
-            localScreenShareStreamRef.current = null;
-
-            toast.success("Screen Share Stopped", {
-              description: "You have stopped sharing your screen"
-            });
-
-            if (socket && roomId) {
-              socket.emit("media-state-change", {
-                isScreenSharing: false,
-                micOn,
-                camOn
-              });
-            }
-          };
-
-        } catch (error: any) {
-          console.error("Error starting screen share:", error);
-          toast.error("Screen Share Error", {
-            description: error?.message || "Failed to start screen sharing"
-          });
-          setScreenShareOn(false);
-        }
-      } else {
-        // Stop screen sharing manually
-        if (currentScreenShareTrackRef.current) {
-          currentScreenShareTrackRef.current.stop();
-        }
-        if (localScreenShareStreamRef.current) {
-          localScreenShareStreamRef.current.getTracks().forEach(t => t.stop());
-          localScreenShareStreamRef.current = null;
-        }
-        if (localScreenShareRef.current) {
-          localScreenShareRef.current.srcObject = null;
-        }
-
-        let cameraTrack = currentVideoTrackRef.current;
-        if (!cameraTrack || cameraTrack.readyState === "ended") {
-          if (camOn) {
-            try {
-              const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-              cameraTrack = cameraStream.getVideoTracks()[0];
-              currentVideoTrackRef.current = cameraTrack;
-              
-              if (localVideoRef.current) {
-                const ms = localVideoRef.current.srcObject as MediaStream || new MediaStream();
-                ms.getVideoTracks().forEach(t => ms.removeTrack(t));
-                ms.addTrack(cameraTrack);
-                if (!localVideoRef.current.srcObject) localVideoRef.current.srcObject = ms;
-                await localVideoRef.current.play().catch(() => {});
-              }
-            } catch (err: any) {
-              console.error("Error getting camera after stopping screen share:", err);
-              toast.error("Camera Error", {
-                description: "Failed to restore camera after stopping screen share"
-              });
-              cameraTrack = null;
-            }
-          }
-        }
-
-        if (videoSenderRef.current) {
-          await videoSenderRef.current.replaceTrack(camOn ? cameraTrack : null);
-        }
-
-        if (socket && roomId) {
-          socket.emit("media-state-change", {
-            isScreenSharing: false,
-            micOn,
-            camOn
-          });
-        }
-
-        currentScreenShareTrackRef.current = null;
-      }
-    } catch (error: any) {
-      console.error("toggleScreenShare error", error);
-      toast.error("Screen Share Error", {
-        description: error?.message || "Failed to toggle screen sharing"
-      });
-      setScreenShareOn(false);
-    }
-  };
-
-  const handleNext = () => {
-    const s = socketRef.current;
-    if (!s) return;
-
-    const actualCamState = !!(currentVideoTrackRef.current && currentVideoTrackRef.current.readyState === "live" && camOn);
-    const actualMicState = !!(localAudioTrack && localAudioTrack.readyState === "live" && micOn);
-
-    try {
-      remoteStreamRef.current?.getTracks().forEach((t) => t.stop());
-    } catch {}
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-
-    s.emit("queue:next");
-    handleNextConnection(actualCamState, actualMicState, "next");
-  };
-
-  const handleLeave = () => {
-    const s = socketRef.current;
-
-    try {
-      s?.emit("queue:leave");
-    } catch {}
-
-    if (screenShareOn) {
-      if (currentScreenShareTrackRef.current) {
-        try {
-          currentScreenShareTrackRef.current.stop();
-        } catch {}
-      }
-      if (localScreenShareStreamRef.current) {
-        try {
-          localScreenShareStreamRef.current.getTracks().forEach(t => t.stop());
-        } catch {}
-      }
-    }
-
-    teardownPeers(
-      "teardown",
-      sendingPcRef,
-      receivingPcRef,
-      remoteStreamRef,
-      remoteVideoRef,
-      remoteAudioRef,
-      videoSenderRef,
-      localScreenShareStreamRef,
-      currentScreenShareTrackRef,
-      localScreenShareRef,
-      {
-        setShowChat,
-        setPeerMicOn,
-        setPeerCamOn,
-        setScreenShareOn,
-        setPeerScreenShareOn,
-        setLobby,
-        setStatus
-      }
-    );
-    stopProvidedTracks(localVideoTrack, localAudioTrack, currentVideoTrackRef);
-    detachLocalPreview(localVideoRef);
-
-    try {
-      s?.disconnect();
-    } catch {}
-    socketRef.current = null;
-
-    try {
-      router.replace(`/match`);
-    } catch (e) {
-      try {
-        router.replace(`/`);
-      } catch {}
-    }
-
-    try {
-      onLeave?.();
-    } catch {}
-  };
-
-  const handleRecheck = () => {
-    setLobby(true);
-    setStatus("Rechecking…");
-  };
-
-  const handleReport = (reason?: string) => {
-    const s = socketRef.current;
-    const reporter = mySocketId || s?.id || null;
-    const reported = peerIdRef.current || null;
-    try {
-      if (s && reporter) {
-        s.emit("report", { reporterId: reporter, reportedId: reported, roomId, reason });
-        toast.success("Report submitted", { description: "Thank you. We received your report." });
-      } else {
-        toast.error("Report failed", { description: "Could not submit report (no socket)." });
-      }
-    } catch (e) {
-      console.error("report emit error", e);
-      try { toast.error("Report failed", { description: "An error occurred." }); } catch {}
-    }
-  };
-
-  function handleNextConnection(currentCamState: boolean, currentMicState: boolean, reason: "next" | "partner-left" = "next") {
+  // Handle next connection function
+  const handleNextConnection = useCallback((currentCamState: boolean, currentMicState: boolean, reason: "next" | "partner-left" = "next") => {
     console.log("🔄 HANDLE_NEXT_CONNECTION START:", { currentCamState, currentMicState, reason });
     
     // Clear ICE candidate queues
-    senderIceCandidatesQueue.current = [];
-    receiverIceCandidatesQueue.current = [];
+    webrtcConnection.clearIceQueues();
     
-    teardownPeers(
+    webrtcConnection.cleanup(
       reason,
-      sendingPcRef,
-      receivingPcRef,
-      remoteStreamRef,
       remoteVideoRef,
       remoteAudioRef,
-      videoSenderRef,
-      localScreenShareStreamRef,
-      currentScreenShareTrackRef,
       localScreenShareRef,
       {
         setShowChat,
@@ -485,11 +119,11 @@ export default function Room({
 
     if (!currentCamState) {
       console.log("🚫 CAMERA OFF - Cleaning up video tracks");
-      if (currentVideoTrackRef.current) {
+      if (webrtcConnection.currentVideoTrackRef.current) {
         try {
-          console.log("🛑 Stopping video track:", currentVideoTrackRef.current.id);
-          currentVideoTrackRef.current.stop();
-          currentVideoTrackRef.current = null;
+          console.log("🛑 Stopping video track:", webrtcConnection.currentVideoTrackRef.current.id);
+          webrtcConnection.currentVideoTrackRef.current.stop();
+          webrtcConnection.currentVideoTrackRef.current = null;
           console.log("✅ Video track stopped and cleared");
         } catch (err) {
           console.error("❌ Error stopping video track:", err);
@@ -511,14 +145,117 @@ export default function Room({
     }
 
     console.log("🔄 HANDLE_NEXT_CONNECTION END - States preserved:", { camOn: currentCamState, micOn: currentMicState });
-  }
+  }, [webrtcConnection, camOn, micOn, localAudioTrack, localVideoRef]);
+
+  // Initialize room actions hook
+  const roomActions = useRoomActions({
+    socket: socketRef.current,
+    roomId,
+    mySocketId,
+    peerIdRef,
+    localAudioTrack,
+    localVideoTrack,
+    currentVideoTrackRef: webrtcConnection.currentVideoTrackRef,
+    currentScreenShareTrackRef: webrtcConnection.currentScreenShareTrackRef,
+    localScreenShareStreamRef: webrtcConnection.localScreenShareStreamRef,
+    screenShareOn,
+    camOn,
+    micOn,
+    sendingPcRef: webrtcConnection.sendingPcRef,
+    receivingPcRef: webrtcConnection.receivingPcRef,
+    remoteStreamRef: webrtcConnection.remoteStreamRef,
+    remoteVideoRef,
+    remoteAudioRef,
+    videoSenderRef: webrtcConnection.videoSenderRef,
+    localScreenShareRef,
+    localVideoRef,
+    onLeave,
+    onNextConnection: handleNextConnection,
+    setters: {
+      setShowChat,
+      setPeerMicOn,
+      setPeerCamOn,
+      setScreenShareOn,
+      setPeerScreenShareOn,
+      setLobby,
+      setStatus
+    }
+  });
+
+  // Helper function for remote stream management
+  const ensureRemoteStreamLocal = useCallback(() => {
+    if (!webrtcConnection.remoteStreamRef.current) {
+      webrtcConnection.remoteStreamRef.current = new MediaStream();
+    }
+    if (remoteVideoRef.current && !peerScreenShareOn) {
+      remoteVideoRef.current.srcObject = webrtcConnection.remoteStreamRef.current;
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = webrtcConnection.remoteStreamRef.current;
+    }
+    if (remoteScreenShareRef.current && peerScreenShareOn) {
+      remoteScreenShareRef.current.srcObject = webrtcConnection.remoteStreamRef.current;
+    }
+  }, [webrtcConnection.remoteStreamRef, peerScreenShareOn]);
+
+  // Helper for common PC setup
+  const setupPeerConnection = useCallback(async (pc: RTCPeerConnection, isOffer: boolean, rid: string, socket: Socket) => {
+    webrtcConnection.videoSenderRef.current = null;
+    
+    if (localAudioTrack && localAudioTrack.readyState === "live" && micOn) {
+      pc.addTrack(localAudioTrack);
+    }
+    
+    if (camOn) {
+      let videoTrack = webrtcConnection.currentVideoTrackRef.current;
+      if (!videoTrack || videoTrack.readyState === "ended") {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          videoTrack = stream.getVideoTracks()[0];
+          webrtcConnection.currentVideoTrackRef.current = videoTrack;
+        } catch (err) {
+          console.error("Error creating video track:", err);
+          videoTrack = null;
+        }
+      }
+      
+      if (videoTrack && videoTrack.readyState === "live") {
+        const vs = pc.addTrack(videoTrack);
+        webrtcConnection.videoSenderRef.current = vs;
+      }
+    }
+
+    ensureRemoteStreamLocal();
+    pc.ontrack = (e) => {
+      console.log("🎯 Received track event!");
+      if (!webrtcConnection.remoteStreamRef.current) webrtcConnection.remoteStreamRef.current = new MediaStream();
+      if (e.track.kind === 'video') {
+        webrtcConnection.remoteStreamRef.current.getVideoTracks().forEach((track: MediaStreamTrack) => 
+          webrtcConnection.remoteStreamRef.current?.removeTrack(track)
+        );
+      }
+      webrtcConnection.remoteStreamRef.current.addTrack(e.track);
+      ensureRemoteStreamLocal();
+    };
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        socket.emit("add-ice-candidate", { 
+          candidate: e.candidate, 
+          type: isOffer ? "sender" : "receiver", 
+          roomId: rid 
+        });
+      }
+    };
+  }, [webrtcConnection, localAudioTrack, micOn, camOn, ensureRemoteStreamLocal]);
+
 
   // ===== EFFECTS =====
   useEffect(() => {
     if (localVideoTrack) {
-      currentVideoTrackRef.current = localVideoTrack;
+      webrtcConnection.currentVideoTrackRef.current = localVideoTrack;
     }
-  }, [localVideoTrack]);
+  }, [localVideoTrack, webrtcConnection.currentVideoTrackRef]);
 
 
 
@@ -553,7 +290,7 @@ export default function Room({
     socketRef.current.emit("media:state", { roomId, state: { micOn, camOn } });
   }, [micOn, camOn, roomId]);
 
-  // Main socket connection effect - simplified, actual WebRTC logic would be here
+  // Main socket connection effect
   useEffect(() => {
     if (socketRef.current) return;
 
@@ -588,7 +325,7 @@ export default function Room({
       });
 
       const pc = new RTCPeerConnection();
-      sendingPcRef.current = pc;
+      webrtcConnection.sendingPcRef.current = pc;
       peerIdRef.current = rid;
       
       await setupPeerConnection(pc, true, rid, s);
@@ -610,12 +347,12 @@ export default function Room({
       });
 
       const pc = new RTCPeerConnection();
-      receivingPcRef.current = pc;
+      webrtcConnection.receivingPcRef.current = pc;
       peerIdRef.current = rid;
       
       await setupPeerConnection(pc, false, rid, s);
       await pc.setRemoteDescription(new RTCSessionDescription(remoteSdp));
-      await processQueuedIceCandidates(pc, receiverIceCandidatesQueue.current);
+      await webrtcConnection.processQueuedIceCandidates(pc, webrtcConnection.receiverIceCandidatesQueue.current);
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -624,12 +361,12 @@ export default function Room({
 
     // caller receives answer
     s.on("answer", async ({ sdp: remoteSdp }) => {
-      const pc = sendingPcRef.current;
+      const pc = webrtcConnection.sendingPcRef.current;
       if (!pc) return;
       await pc.setRemoteDescription(new RTCSessionDescription(remoteSdp));
       
       // Process any queued ICE candidates now that remote description is set
-      await processQueuedIceCandidates(pc, senderIceCandidatesQueue.current);
+      await webrtcConnection.processQueuedIceCandidates(pc, webrtcConnection.senderIceCandidatesQueue.current);
     });
 
     // trickle ICE
@@ -638,21 +375,21 @@ export default function Room({
         const ice = new RTCIceCandidate(candidate);
         
         if (type === "sender") {
-          const pc = receivingPcRef.current;
+          const pc = webrtcConnection.receivingPcRef.current;
           if (pc && pc.remoteDescription) {
             await pc.addIceCandidate(ice);
           } else {
             // Queue the candidate until remote description is set
-            receiverIceCandidatesQueue.current.push(ice);
+            webrtcConnection.receiverIceCandidatesQueue.current.push(ice);
             console.log("Queued ICE candidate for receiver (no remote description yet)");
           }
         } else {
-          const pc = sendingPcRef.current;
+          const pc = webrtcConnection.sendingPcRef.current;
           if (pc && pc.remoteDescription) {
             await pc.addIceCandidate(ice);
           } else {
             // Queue the candidate until remote description is set
-            senderIceCandidatesQueue.current.push(ice);
+            webrtcConnection.senderIceCandidatesQueue.current.push(ice);
             console.log("Queued ICE candidate for sender (no remote description yet)");
           }
         }
@@ -664,7 +401,7 @@ export default function Room({
     // Renegotiation handlers
     s.on("renegotiate-offer", async ({ sdp, role }) => {
       console.log("Received renegotiation offer from", role);
-      const pc = receivingPcRef.current;
+      const pc = webrtcConnection.receivingPcRef.current;
       if (pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
         const answer = await pc.createAnswer();
@@ -675,13 +412,13 @@ export default function Room({
 
     s.on("renegotiate-answer", async ({ sdp, role }) => {
       console.log("Received renegotiation answer from", role);
-      const pc = sendingPcRef.current;
+      const pc = webrtcConnection.sendingPcRef.current;
       if (pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       }
     });
 
-    // Simplified event handlers - full WebRTC logic would go here
+    // Room events
     s.on("lobby", () => {
       console.log("[FRONTEND] Received lobby event");
       setLobby(true);
@@ -707,7 +444,7 @@ export default function Room({
         description: "Your partner has left the call"
       });
       
-      const actualCamState = !!(currentVideoTrackRef.current && currentVideoTrackRef.current.readyState === "live" && camOn);
+      const actualCamState = !!(webrtcConnection.currentVideoTrackRef.current && webrtcConnection.currentVideoTrackRef.current.readyState === "live" && camOn);
       const actualMicState = !!(localAudioTrack && localAudioTrack.readyState === "live" && micOn);
       
       handleNextConnection(actualCamState, actualMicState, "partner-left");
@@ -736,7 +473,7 @@ export default function Room({
       try {
         s.emit("queue:leave");
       } catch {}
-      stopProvidedTracks(localVideoTrack, localAudioTrack, currentVideoTrackRef);
+      stopProvidedTracks(localVideoTrack, localAudioTrack, webrtcConnection.currentVideoTrackRef);
       detachLocalPreview(localVideoRef);
     };
     window.addEventListener("beforeunload", onBeforeUnload);
@@ -747,7 +484,7 @@ export default function Room({
       socketRef.current = null;
       detachLocalPreview(localVideoRef);
     };
-  }, [name, localAudioTrack, localVideoTrack]);
+  }, [name, localAudioTrack, localVideoTrack, camOn, micOn, peerScreenShareOn]);
 
   // ===== RENDER =====
   return (
@@ -797,22 +534,22 @@ export default function Room({
       <ControlBar
         mediaState={mediaState}
         showChat={showChat}
-        onToggleMic={toggleMic}
-        onToggleCam={toggleCam}
-        onToggleScreenShare={toggleScreenShare}
+        onToggleMic={mediaControls.toggleMic}
+        onToggleCam={mediaControls.toggleCam}
+        onToggleScreenShare={mediaControls.toggleScreenShare}
         onToggleChat={() => setShowChat((v) => !v)}
-        onRecheck={handleRecheck}
-        onNext={handleNext}
-        onLeave={handleLeave}
-        onReport={() => handleReport()}
+        onRecheck={roomActions.handleRecheck}
+        onNext={roomActions.handleNext}
+        onLeave={roomActions.handleLeave}
+        onReport={() => roomActions.handleReport()}
       />
 
       <TimeoutAlert
         show={showTimeoutAlert}
         message={timeoutMessage}
-        onRetry={handleRetryMatchmaking}
-        onCancel={handleCancelTimeout}
-        onKeyDown={handleKeyDown}
+        onRetry={roomActions.handleRetryMatchmaking}
+        onCancel={roomActions.handleCancelTimeout}
+        onKeyDown={roomActions.handleKeyDown}
       />
     </div>
   );
