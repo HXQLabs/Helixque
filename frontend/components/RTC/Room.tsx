@@ -703,9 +703,9 @@ export default function Room({
 
     s.on("partner:left", () => {
       console.log("👋 PARTNER LEFT");
-  //    toast.warning("Partner Left", {
-  //      description: "Your partner has left the call"
-    //  });
+      toast.warning("Partner Left", {
+        description: "Your partner has left the call"
+      });
       
       const actualCamState = !!(currentVideoTrackRef.current && currentVideoTrackRef.current.readyState === "live" && camOn);
       const actualMicState = !!(localAudioTrack && localAudioTrack.readyState === "live" && micOn);

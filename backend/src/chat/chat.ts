@@ -8,6 +8,52 @@ const announcedUsers = new Map<string, Set<string>>();
 const joinedSockets = new Map<string, Set<string>>();
 
 /**
+ * Clean up room state when socket leaves or switches rooms
+ */
+function cleanupRoomForSocket(socket: Socket, roomId: string) {
+  const room = `chat:${roomId}`;
+  const announced = announcedUsers.get(room);
+  const socketSet = joinedSockets.get(room);
+
+  if (socketSet) {
+    socketSet.delete(socket.id);
+    if (socketSet.size === 0) {
+      joinedSockets.delete(room);
+    }
+  }
+
+  if (!announced) return;
+
+  const uid = socket.data.userId;
+  const userName = socket.data.name;
+  let hasOtherSockets = false;
+  const clients = socket.nsp.adapter.rooms.get(room);
+
+  if (clients) {
+    for (const clientId of clients) {
+      if (clientId === socket.id) continue;
+      const clientSocket = socket.nsp.sockets.get(clientId);
+      if (clientSocket && clientSocket.data?.userId === uid) {
+        hasOtherSockets = true;
+        break;
+      }
+    }
+  }
+
+  if (!hasOtherSockets && uid && announced.has(uid)) {
+    announced.delete(uid);
+    socket.nsp.in(room).emit("chat:system", {
+      text: `${userName} left the chat`,
+      ts: Date.now(),
+    });
+  }
+
+  if (announced.size === 0) {
+    announcedUsers.delete(room);
+  }
+}
+
+/**
  * Join the socket to the chat room and announce (dedup by userId)
  * Uses authenticated userId from socket handshake, not client payload
  */
@@ -19,6 +65,13 @@ export function joinChatRoom(socket: Socket, roomId: string, name: string) {
   // SECURITY: Get userId from server-side auth, not client
   // Fallback to socket.id if no auth present
   const userId = socket.handshake.auth?.userId ?? socket.id;
+
+  // Clean up previous room if switching rooms
+  const previousRoomId = socket.data.roomId;
+  if (previousRoomId && previousRoomId !== roomId) {
+    cleanupRoomForSocket(socket, previousRoomId);
+    socket.leave(`chat:${previousRoomId}`);
+  }
 
   // Prevent same socket from joining multiple times
   if (!joinedSockets.has(room)) {
@@ -61,52 +114,8 @@ export function joinChatRoom(socket: Socket, roomId: string, name: string) {
 
     socket.on("disconnect", () => {
       const userRoom = socket.data.roomId;
-      const userName = socket.data.name;
-      const uid = socket.data.userId;
-
       if (!userRoom) return;
-
-      const room = `chat:${userRoom}`;
-      const announced = announcedUsers.get(room);
-      const socketSet = joinedSockets.get(room);
-
-      // Remove this socket from joined set
-      if (socketSet) {
-        socketSet.delete(socket.id);
-        if (socketSet.size === 0) {
-          joinedSockets.delete(room);
-        }
-      }
-
-      if (!announced) return;
-
-      // Check if this user has any other active sockets in the room
-      const clients = socket.nsp.adapter.rooms.get(room);
-      let hasOtherSockets = false;
-
-      if (clients) {
-        for (const clientId of clients) {
-          const clientSocket = socket.nsp.sockets.get(clientId);
-          if (clientSocket && clientSocket.data?.userId === uid && clientSocket.id !== socket.id) {
-            hasOtherSockets = true;
-            break;
-          }
-        }
-      }
-
-      // Only announce left if user has no other active sockets
-      if (!hasOtherSockets && announced.has(uid)) {
-        announced.delete(uid);
-        socket.nsp.in(room).emit("chat:system", {
-          text: `${userName} left the chat`,
-          ts: Date.now(),
-        });
-      }
-
-      // Clean up empty room tracker
-      if (announced.size === 0) {
-        announcedUsers.delete(room);
-      }
+      cleanupRoomForSocket(socket, userRoom);
     });
   }
 }
