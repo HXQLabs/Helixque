@@ -39,97 +39,123 @@ export default function ControlBar({
   onRecheck,
   onNext,
   onLeave,
-  onReport
+  onReport,
 }: ControlBarProps) {
   const { micOn, camOn, screenShareOn } = mediaState;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-20 z-50">
-      <div className="relative h-full flex items-center justify-center">
-        {/* Bottom controls */}
-        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1.5 backdrop-blur">
-          <Tooltip content="Recheck">
-            <button
-              onClick={onRecheck}
-              className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center cursor-pointer"
-            >
-              <IconRefresh className="h-5 w-5" />
-            </button>
-          </Tooltip>
+    <div className="absolute bottom-0 left-0 right-0 z-40 h-20 px-2">
+      <div className="h-full overflow-x-auto overflow-y-hidden scrollbar-hide">
+        <div className="flex h-full translate-y-2 w-full items-center justify-center gap-4 sm:justify-between">
+          <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/50 p-1 backdrop-blur sm:gap-2 sm:p-1.5">
+            <Tooltip content="Recheck">
+              <button
+                onClick={onRecheck}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 sm:h-11 sm:w-11"
+              >
+                <IconRefresh className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
+            </Tooltip>
 
-          <Tooltip content={micOn ? "Turn off microphone" : "Turn on microphone"}>
-            <button
-              onClick={onToggleMic}
-              className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
-                micOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-              }`}
+            <Tooltip
+              content={micOn ? "Turn off microphone" : "Turn on microphone"}
             >
-              {micOn ? <IconMicrophone className="h-5 w-5" /> : <IconMicrophoneOff className="h-5 w-5" />}
-            </button>
-          </Tooltip>
+              <button
+                onClick={onToggleMic}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition sm:h-11 sm:w-11 ${
+                  micOn
+                    ? "bg-white/10 hover:bg-white/20"
+                    : "bg-red-600 hover:bg-red-500"
+                }`}
+              >
+                {micOn ? (
+                  <IconMicrophone className="h-4 w-4 sm:h-5 sm:w-5" />
+                ) : (
+                  <IconMicrophoneOff className="h-4 w-4 sm:h-5 sm:w-5" />
+                )}
+              </button>
+            </Tooltip>
 
-          <Tooltip content={camOn ? "Turn off camera" : "Turn on camera"}>
-            <button
-              onClick={onToggleCam}
-              className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
-                camOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-              }`}
+            <Tooltip content={camOn ? "Turn off camera" : "Turn on camera"}>
+              <button
+                onClick={onToggleCam}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition sm:h-11 sm:w-11 ${
+                  camOn
+                    ? "bg-white/10 hover:bg-white/20"
+                    : "bg-red-600 hover:bg-red-500"
+                }`}
+              >
+                {camOn ? (
+                  <IconVideo className="h-4 w-4 sm:h-5 sm:w-5" />
+                ) : (
+                  <IconVideoOff className="h-4 w-4 sm:h-5 sm:w-5" />
+                )}
+              </button>
+            </Tooltip>
+
+            <Tooltip
+              content={
+                screenShareOn ? "Stop screen share" : "Start screen share"
+              }
             >
-              {camOn ? <IconVideo className="h-5 w-5" /> : <IconVideoOff className="h-5 w-5" />}
-            </button>
-          </Tooltip>
+              <button
+                onClick={onToggleScreenShare}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition sm:h-11 sm:w-11 ${
+                  screenShareOn
+                    ? "bg-blue-600 hover:bg-blue-500"
+                    : "bg-white/10 hover:bg-white/20"
+                }`}
+              >
+                {screenShareOn ? (
+                  <IconScreenShareOff className="h-4 w-4 sm:h-5 sm:w-5" />
+                ) : (
+                  <IconScreenShare className="h-4 w-4 sm:h-5 sm:w-5" />
+                )}
+              </button>
+            </Tooltip>
 
-          <Tooltip content={screenShareOn ? "Stop screen share" : "Start screen share"}>
-            <button
-              onClick={onToggleScreenShare}
-              className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
-                screenShareOn ? "bg-blue-600 hover:bg-blue-500" : "bg-white/10 hover:bg-white/20"
-              }`}
-            >
-              {screenShareOn ? <IconScreenShareOff className="h-5 w-5" /> : <IconScreenShare className="h-5 w-5" />}
-            </button>
-          </Tooltip>
+            <Tooltip content="Next match">
+              <button
+                onClick={onNext}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 sm:h-11 sm:w-11"
+              >
+                <IconUserOff className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
+            </Tooltip>
 
-          <Tooltip content="Next match">
-            <button
-              onClick={onNext}
-              className="cursor-pointer h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
-            >
-              <IconUserOff className="h-5 w-5" />
-            </button>
-          </Tooltip>
+            <Tooltip content="Leave call">
+              <button
+                onClick={onLeave}
+                className="ml-1 mr-1 flex h-10 items-center justify-center gap-2 rounded-full bg-red-600 px-4 hover:bg-red-500 sm:h-11 sm:px-6"
+              >
+                <IconPhoneOff className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline text-sm font-medium">
+                  Leave
+                </span>
+              </button>
+            </Tooltip>
+          </div>
 
-          <Tooltip content="Leave call">
-            <button
-              onClick={onLeave}
-              className="cursor-pointer ml-1 mr-1 h-11 rounded-full bg-red-600 px-6 hover:bg-red-500 flex items-center justify-center gap-2"
-            >
-              <IconPhoneOff className="h-5 w-5" />
-              <span className="hidden sm:inline text-sm font-medium">Leave</span>
-            </button>
-          </Tooltip>
-        </div>
-
-        {/* Right side controls */}
-        <div className="absolute right-6">
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1.5 backdrop-blur">
+          <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/50 p-1 backdrop-blur sm:gap-2 sm:p-1.5">
             <Tooltip content={showChat ? "Close chat" : "Open chat"}>
               <button
                 onClick={onToggleChat}
-                className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
-                  showChat ? "bg-indigo-600 hover:bg-indigo-500" : "bg-white/10 hover:bg-white/20"
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition sm:h-11 sm:w-11 ${
+                  showChat
+                    ? "bg-indigo-600 hover:bg-indigo-500"
+                    : "bg-white/10 hover:bg-white/20"
                 }`}
               >
-                <IconMessage className="h-5 w-5" />
+                <IconMessage className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </Tooltip>
-            
-            <Tooltip content="Report user">
+
+            <Tooltip content="Report user " align="end">
               <button
                 onClick={onReport}
-                className="cursor-pointer h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 sm:h-11 sm:w-11"
               >
-                <IconFlag className="h-5 w-5" />
+                <IconFlag className="h-3 w-4 sm:h-5 sm:w-5" />
               </button>
             </Tooltip>
           </div>
