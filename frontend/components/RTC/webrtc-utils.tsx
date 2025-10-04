@@ -207,7 +207,7 @@ export function teardownPeers(
   // Reset UI states
   setters.setShowChat(false);
   setters.setPeerMicOn(true);
-  setters.setPeerCamOn(true);
+  // setters.setPeerCamOn(true);
   setters.setScreenShareOn(false);
   setters.setPeerScreenShareOn(false);
 
