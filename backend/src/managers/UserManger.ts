@@ -6,13 +6,15 @@ const QUEUE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 export interface User {
   socket: Socket;
   name: string;
+  mode?: 'video' | 'text-only'; // connection mode
   meta?: Record<string, unknown>; // optional, for diagnostics
   joinedAt?: number;
 }
 
 export class UserManager {
   private users: User[];
-  private queue: string[];
+  private queue: string[]; // video chat queue
+  private textQueue: string[]; // professional text-only chat queue
 
   // track bans, partner links, online, and per-user room
   private bans: Map<string, Set<string>>;
@@ -28,6 +30,7 @@ export class UserManager {
   constructor() {
     this.users = [];
     this.queue = [];
+    this.textQueue = [];
     this.roomManager = new RoomManager();
 
     this.bans = new Map();
@@ -38,19 +41,26 @@ export class UserManager {
     this.timeoutIntervals = new Map();
   }
 
-  // accepts optional meta; safe to call as addUser(name, socket)
+  // accepts optional meta and mode; safe to call as addUser(name, socket)
   addUser(name: string, socket: Socket, meta?: Record<string, unknown>) {
-    this.users.push({ name, socket, meta, joinedAt: Date.now() });
+    // Extract mode from auth or default to video
+    const mode = (socket.handshake.auth?.mode as 'video' | 'text-only') || 'video';
+    
+    this.users.push({ name, socket, mode, meta, joinedAt: Date.now() });
     this.online.add(socket.id);
 
-    // join queue immediately (kept from your original flow)
-    if (!this.queue.includes(socket.id)) {
-      this.queue.push(socket.id);
-      this.startQueueTimeout(socket.id);
+    // join appropriate queue based on mode
+    if (mode === 'text-only') {
+      // Don't auto-join text queue - let them join explicitly
+    } else {
+      // join video queue immediately (kept from your original flow)
+      if (!this.queue.includes(socket.id)) {
+        this.queue.push(socket.id);
+        this.startQueueTimeout(socket.id);
+      }
+      socket.emit("lobby");
+      this.clearQueue(); // preserve your behavior
     }
-
-    socket.emit("lobby");
-    this.clearQueue(); // preserve your behavior
 
     this.initHandlers(socket);
   }
@@ -59,8 +69,9 @@ export class UserManager {
     // remove from list
     this.users = this.users.filter((x) => x.socket.id !== socketId);
 
-    // remove from queue (fix)
+    // remove from both queues
     this.queue = this.queue.filter((x) => x !== socketId);
+    this.textQueue = this.textQueue.filter((x) => x !== socketId);
 
     // clean presence
     this.online.delete(socketId);
@@ -268,6 +279,130 @@ export class UserManager {
     }
   }
 
+  // ---------- PROFESSIONAL TEXT-ONLY CHAT METHODS ----------
+
+  /** Add user to professional text-only chat queue */
+  joinProfessionalChatQueue(socketId: string) {
+    if (!this.textQueue.includes(socketId) && this.online.has(socketId)) {
+      this.textQueue.push(socketId);
+      this.startQueueTimeout(socketId);
+      this.clearProfessionalChatQueue();
+    }
+  }
+
+  /** Try to match users in professional text-only chat */
+  clearProfessionalChatQueue() {
+    while (this.textQueue.length >= 2) {
+      const user1Id = this.textQueue.shift()!;
+      const user2Id = this.textQueue.shift()!;
+
+      // Check if both users are still online
+      if (!this.online.has(user1Id) || !this.online.has(user2Id)) {
+        continue;
+      }
+
+      const user1 = this.users.find(u => u.socket.id === user1Id);
+      const user2 = this.users.find(u => u.socket.id === user2Id);
+
+      if (!user1 || !user2) continue;
+
+      // Check bans
+      const bans1 = this.bans.get(user1Id) || new Set<string>();
+      const bans2 = this.bans.get(user2Id) || new Set<string>();
+      
+      if (bans1.has(user2Id) || bans2.has(user1Id)) {
+        // Re-queue both users
+        this.textQueue.push(user1Id, user2Id);
+        break;
+      }
+
+      // Create professional chat room
+      const roomId = this.createProfessionalChatRoom(user1, user2);
+      
+      // Set up partnerships and room tracking
+      this.partnerOf.set(user1Id, user2Id);
+      this.partnerOf.set(user2Id, user1Id);
+      this.roomOf.set(user1Id, roomId);
+      this.roomOf.set(user2Id, roomId);
+
+      // Clear timeouts
+      this.clearQueueTimeout(user1Id);
+      this.clearQueueTimeout(user2Id);
+
+      // Notify users of successful match
+      user1.socket.emit("professional-chat:matched", { 
+        roomId, 
+        partnerName: user2.name 
+      });
+      user2.socket.emit("professional-chat:matched", { 
+        roomId, 
+        partnerName: user1.name 
+      });
+
+      console.log(`[PROFESSIONAL CHAT] Matched ${user1.name} with ${user2.name} in room ${roomId}`);
+    }
+  }
+
+  /** Create a room ID for professional chat */
+  private createProfessionalChatRoom(user1: User, user2: User): string {
+    return `prof-chat-${Date.now()}-${user1.socket.id.slice(0, 4)}-${user2.socket.id.slice(0, 4)}`;
+  }
+
+  /** Handle professional chat next connection */
+  private onProfessionalChatNext(userId: string) {
+    const partnerId = this.partnerOf.get(userId);
+    if (!partnerId) {
+      // User not currently paired, just requeue
+      this.joinProfessionalChatQueue(userId);
+      return;
+    }
+
+    // Ban both users from matching again
+    const bansU = this.bans.get(userId) || new Set<string>();
+    const bansP = this.bans.get(partnerId) || new Set<string>();
+    bansU.add(partnerId);
+    bansP.add(userId);
+    this.bans.set(userId, bansU);
+    this.bans.set(partnerId, bansP);
+
+    // Clear partnerships and rooms
+    this.partnerOf.delete(userId);
+    this.partnerOf.delete(partnerId);
+    this.roomOf.delete(userId);
+    this.roomOf.delete(partnerId);
+
+    // Requeue caller and notify partner
+    this.joinProfessionalChatQueue(userId);
+    
+    const partnerUser = this.users.find(u => u.socket.id === partnerId);
+    if (partnerUser && this.online.has(partnerId)) {
+      partnerUser.socket.emit("professional-chat:partner-left", { reason: "next" });
+      this.joinProfessionalChatQueue(partnerId);
+    }
+  }
+
+  /** Handle professional chat leave */
+  private onProfessionalChatLeave(userId: string) {
+    const partnerId = this.partnerOf.get(userId);
+    
+    // Clear user's queue status and partnerships
+    this.textQueue = this.textQueue.filter(id => id !== userId);
+    this.clearQueueTimeout(userId);
+    this.partnerOf.delete(userId);
+    this.roomOf.delete(userId);
+
+    // Notify partner if they exist
+    if (partnerId) {
+      this.partnerOf.delete(partnerId);
+      this.roomOf.delete(partnerId);
+      
+      const partnerUser = this.users.find(u => u.socket.id === partnerId);
+      if (partnerUser && this.online.has(partnerId)) {
+        partnerUser.socket.emit("professional-chat:partner-left", { reason: "leave" });
+      }
+    }
+  }
+
   private onNext(userId: string) {
     const partnerId = this.partnerOf.get(userId);
     if (!partnerId) {
@@ -344,9 +479,33 @@ export class UserManager {
       }
     });
 
+    // Professional text-only chat handlers
+    socket.on("professional-chat:join-queue", ({ name }: { name: string }) => {
+      console.log(`[PROFESSIONAL CHAT] ${name} joining queue`);
+      this.joinProfessionalChatQueue(socket.id);
+      socket.emit("professional-chat:waiting");
+    });
+
+    socket.on("professional-chat:leave", () => {
+      console.log(`[PROFESSIONAL CHAT] ${socket.id} leaving`);
+      this.onProfessionalChatLeave(socket.id);
+    });
+
+    socket.on("professional-chat:next", () => {
+      console.log(`[PROFESSIONAL CHAT] ${socket.id} requesting next`);
+      this.onProfessionalChatNext(socket.id);
+    });
+
+    socket.on("professional-chat:retry", () => {
+      console.log(`[PROFESSIONAL CHAT] ${socket.id} retrying`);
+      this.joinProfessionalChatQueue(socket.id);
+      socket.emit("professional-chat:waiting");
+    });
+
     socket.on("disconnect", () => {
       // treat as a leave, but do not remove the partner; requeue them
       this.handleLeave(socket.id, "disconnect");
+      this.onProfessionalChatLeave(socket.id); // Also handle professional chat cleanup
       this.online.delete(socket.id);
     });
   }
