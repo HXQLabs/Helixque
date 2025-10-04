@@ -128,6 +128,17 @@ io.on("connection", (socket: Socket) => {
     socket.to(roomId).emit("renegotiate-answer", { sdp, role });
   });
 
+  // Receive post-call feedback
+  socket.on("call:feedback", ({ roomId, rating, comment, from }: { roomId?: string; rating?: number; comment?: string; from?: string }) => {
+    try {
+      console.log(`[feedback] from=${from} room=${roomId} rating=${rating} comment=${comment}`);
+      // In a full impl, persist to DB; for now just acknowledge
+      socket.emit("call:feedback:ack", { ok: true });
+    } catch (e) {
+      console.warn("feedback handling error", e);
+    }
+  });
+
   socket.on("disconnect", (reason) => {
     console.log(`[io] disconnected ${socket.id} (${reason})`);
 
