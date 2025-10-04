@@ -5,8 +5,13 @@ import type { Server, Socket } from "socket.io";
 export function joinChatRoom(socket: Socket, roomId: string, name: string) {
   if (!roomId) return;
   const room = `chat:${roomId}`;
+  // Only emit join message if this socket was not already in the room
+  const rooms = socket.rooms || new Set();
+  const alreadyInRoom = rooms.has(room);
   socket.join(room);
-  socket.nsp.in(room).emit("chat:system", { text: `${name} joined the chat`, ts: Date.now() });
+  if (!alreadyInRoom) {
+    socket.nsp.in(room).emit("chat:system", { text: `${name} joined the chat`, ts: Date.now() });
+  }
 }
 
 export function wireChat(io: Server, socket: Socket) {
