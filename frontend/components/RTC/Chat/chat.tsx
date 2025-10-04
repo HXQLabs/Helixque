@@ -125,15 +125,15 @@ export default function ChatPanel({
       }
     };
 
-    const onPartnerLeft = ({ reason }: { reason: string }) => {
-      onSystem({ text: `Your partner left (${reason}).` });
-    };
+ //   const onPartnerLeft = ({ reason }: { reason: string }) => {
+  //    onSystem({ text: `Your partner left (${reason}).` });
+    //};
 
     socket.on("connect", onConnect);
     socket.on("chat:message", onMsg);
     socket.on("chat:system", onSystem);
     socket.on("chat:typing", onTyping);
-    socket.on("partner:left", onPartnerLeft);
+ //   socket.on("partner:left", onPartnerLeft);
 
     // optional: clear chat when switching rooms
     setMessages([]);
@@ -143,7 +143,7 @@ export default function ChatPanel({
       socket.off("chat:message", onMsg);
       socket.off("chat:system", onSystem);
       socket.off("chat:typing", onTyping);
-      socket.off("partner:left", onPartnerLeft);
+    //  socket.off("partner:left", onPartnerLeft);
       // stop typing when leaving room/unmounting
       socket.emit("chat:typing", { roomId, from: name, typing: false });
     };
