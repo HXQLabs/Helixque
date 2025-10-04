@@ -27,6 +27,8 @@ interface ControlBarProps {
   onNext: () => void;
   onLeave: () => void;
   onReport: () => void;
+  onStartRecording?: () => void;
+  onStopRecording?: () => void;
 }
 
 export default function ControlBar({
@@ -40,6 +42,7 @@ export default function ControlBar({
   onNext,
   onLeave,
   onReport
+  , onStartRecording, onStopRecording
 }: ControlBarProps) {
   const { micOn, camOn, screenShareOn } = mediaState;
 
@@ -87,6 +90,27 @@ export default function ControlBar({
               }`}
             >
               {screenShareOn ? <IconScreenShareOff className="h-5 w-5" /> : <IconScreenShare className="h-5 w-5" />}
+            </button>
+          </Tooltip>
+
+          {/* Recording controls placeholder - callbacks implemented in Room */}
+          <Tooltip content={`Start/Stop recording`}>
+            <button
+              onClick={() => {
+                // toggle via provided callbacks if present
+                if ((window as any).__helix_recording_on) {
+                  onStopRecording?.();
+                  (window as any).__helix_recording_on = false;
+                } else {
+                  onStartRecording?.();
+                  (window as any).__helix_recording_on = true;
+                }
+              }}
+              className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20`}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <circle cx="12" cy="12" r="6" />
+              </svg>
             </button>
           </Tooltip>
 

@@ -40,4 +40,26 @@ export function wireChat(io: Server, socket: Socket) {
     if (!roomId) return;
     socket.to(`chat:${roomId}`).emit("chat:typing", { from, typing });
   });
+
+  // File sharing via chat (small files only). Frontend should enforce limits.
+  socket.on("chat:file", (payload: {
+    roomId: string;
+    from: string;
+    clientId: string;
+    filename: string;
+    dataUrl: string; // data:<mime>;base64,...
+    ts?: number;
+  }) => {
+    const { roomId, filename, from, clientId, dataUrl, ts } = payload || {};
+    if (!roomId || !dataUrl || !filename) return;
+    // Broadcast file metadata + dataUrl to room
+    socket.nsp.in(`chat:${roomId}`).emit("chat:file", {
+      roomId,
+      filename,
+      from,
+      clientId,
+      dataUrl,
+      ts: ts ?? Date.now(),
+    });
+  });
 }

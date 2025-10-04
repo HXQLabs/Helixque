@@ -107,6 +107,19 @@ export default function ChatPanel({
         } catch {}
     };
 
+    const onFile = (f: { roomId: string; filename: string; from: string; clientId: string; dataUrl: string; ts?: number }) => {
+      if (!f) return;
+      setMessages((prev) => {
+        const next = [...prev, { text: `[file] ${f.filename}`, from: f.from, clientId: f.clientId, ts: f.ts ?? Date.now(), kind: "user" }];
+        return next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+      });
+      try {
+        if (!isOpen) {
+          toast.success(`${f.from} sent a file: ${f.filename}`, { duration: 3500 });
+        }
+      } catch {}
+    };
+
     const onSystem = (m: { text: string; ts?: number }) => {
       setMessages((prev) => {
         const next = [
@@ -131,6 +144,7 @@ export default function ChatPanel({
 
     socket.on("connect", onConnect);
     socket.on("chat:message", onMsg);
+  socket.on("chat:file", onFile);
     socket.on("chat:system", onSystem);
     socket.on("chat:typing", onTyping);
     socket.on("partner:left", onPartnerLeft);
@@ -141,6 +155,7 @@ export default function ChatPanel({
     return () => {
       socket.off("connect", onConnect);
       socket.off("chat:message", onMsg);
+      socket.off("chat:file", onFile);
       socket.off("chat:system", onSystem);
       socket.off("chat:typing", onTyping);
       socket.off("partner:left", onPartnerLeft);
@@ -171,6 +186,35 @@ export default function ChatPanel({
     socket!.emit("chat:message", payload);
     setInput("");
     socket!.emit("chat:typing", { roomId, from: name, typing: false });
+  };
+
+  // File sharing: read file as data URL and emit to server with size limit
+  const handleFile = async (file?: File | null) => {
+    if (!file || !socket || !roomId) return;
+    const MAX_UPLOAD = 2 * 1024 * 1024; // 2MB client-side cap
+    if (file.size > MAX_UPLOAD) {
+      toast.error("File too large", { description: "Max file size is 2MB" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      try {
+        socket.emit("chat:file", {
+          roomId,
+          filename: file.name,
+          dataUrl,
+          from: name,
+          clientId: mySocketId || sidRef.current,
+          ts: Date.now(),
+        });
+        toast.success("File sent", { duration: 1500 });
+      } catch (e) {
+        toast.error("File send failed");
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleTyping = (value: string) => {
@@ -232,6 +276,19 @@ export default function ChatPanel({
             disabled={!canSend}
             maxLength={MAX_LEN}
           />
+          <label className="flex items-center gap-2">
+            <input
+              type="file"
+              onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              className="hidden"
+            />
+            <button
+              title="Attach file (max 2MB)"
+              className="h-10 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-sm"
+            >
+              Attach
+            </button>
+          </label>
           <button
             onClick={sendMessage}
             disabled={!canSend || !input.trim()}

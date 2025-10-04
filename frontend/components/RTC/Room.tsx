@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -17,7 +17,7 @@ import {
   toggleCameraTrack
 } from "./webrtc-utils";
 
-const URL = process.env.BACKEND_URI || "http://localhost:5001";
+const URL = process.env.NEXT_PUBLIC_BACKEND_URI || "http://localhost:5001";
 
 interface RoomProps {
   name: string;
@@ -50,6 +50,11 @@ export default function Room({
     lobby, setLobby, status, setStatus, showTimeoutAlert, setShowTimeoutAlert,
     timeoutMessage, setTimeoutMessage 
   } = roomState;
+
+  // Recording state
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedBlobsRef = useRef<Blob[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
 
   // DOM refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -415,6 +420,18 @@ export default function Room({
     detachLocalPreview(localVideoRef);
 
     try {
+      // Ask for optional feedback before disconnecting
+      try {
+        const give = window.confirm("Would you like to leave optional feedback about this call? (Cancel to skip)");
+        if (give) {
+          const ratingStr = window.prompt("Rate this call 1-5 (optional)", "5");
+          const rating = ratingStr ? Math.max(1, Math.min(5, Number(ratingStr))) : undefined;
+          const comment = window.prompt("Any quick feedback? (optional)", "");
+          try {
+            s?.emit("call:feedback", { roomId, rating, comment, from: mySocketId || s.id });
+          } catch {}
+        }
+      } catch {}
       s?.disconnect();
     } catch {}
     socketRef.current = null;
@@ -430,6 +447,58 @@ export default function Room({
     try {
       onLeave?.();
     } catch {}
+  };
+
+  // Start recording composite of local + remote (simple approach: record local audio/video only)
+  const startRecording = async () => {
+    if (isRecording) return;
+    try {
+      // prefer recording local preview stream if available
+      const tracks: MediaStreamTrack[] = [];
+      if (localAudioTrack) tracks.push(localAudioTrack);
+      if (currentVideoTrackRef.current) tracks.push(currentVideoTrackRef.current);
+      if (tracks.length === 0) {
+        toast.error("No media to record");
+        return;
+      }
+      const s = new MediaStream(tracks);
+      const mr = new MediaRecorder(s, { mimeType: "video/webm;codecs=vp9,opus" });
+      recordedBlobsRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size) recordedBlobsRef.current.push(e.data);
+      };
+      mr.onstop = () => {
+        const blob = new Blob(recordedBlobsRef.current, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
+        // auto-download
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `helixque-recording-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast.success("Recording saved");
+      };
+      mr.start(1000);
+      mediaRecorderRef.current = mr;
+      setIsRecording(true);
+      toast.success("Recording started");
+    } catch (e: any) {
+      console.error("record start error", e);
+      toast.error("Recording failed to start");
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!isRecording) return;
+    try {
+      mediaRecorderRef.current?.stop();
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+    } catch (e) {
+      console.error("stop recording error", e);
+    }
   };
 
   const handleRecheck = () => {
@@ -805,6 +874,8 @@ export default function Room({
         onNext={handleNext}
         onLeave={handleLeave}
         onReport={() => handleReport()}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
       />
 
       <TimeoutAlert
