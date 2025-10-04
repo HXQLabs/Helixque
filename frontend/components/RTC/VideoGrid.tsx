@@ -59,7 +59,12 @@ export default function VideoGrid({
               autoPlay
               playsInline
               muted
-              className="absolute inset-0 h-full w-full object-cover"
+              controls={false}
+              disablePictureInPicture
+              controlsList="nodownload noplaybackrate"
+              className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+              style={{ pointerEvents: 'none' }}
+              onContextMenu={(e) => e.preventDefault()}
             />
             {!camOn && (
               <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -77,7 +82,12 @@ export default function VideoGrid({
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="absolute inset-0 h-full w-full object-cover"
+              controls={false}
+              disablePictureInPicture
+              controlsList="nodownload noplaybackrate"
+              className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+              style={{ pointerEvents: 'none' }}
+              onContextMenu={(e) => e.preventDefault()}
             />
             {!peerCamOn && (
               <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -101,7 +111,12 @@ export default function VideoGrid({
               autoPlay
               playsInline
               muted
-              className="absolute inset-0 h-full w-full object-contain"
+              controls={false}
+              disablePictureInPicture
+              controlsList="nodownload noplaybackrate"
+              className="absolute inset-0 h-full w-full object-contain pointer-events-none"
+              style={{ pointerEvents: 'none' }}
+              onContextMenu={(e) => e.preventDefault()}
             />
           )}
           {peerScreenShareOn && !screenShareOn && (
@@ -109,7 +124,12 @@ export default function VideoGrid({
               ref={remoteScreenShareRef}
               autoPlay
               playsInline
-              className="absolute inset-0 h-full w-full object-contain"
+              controls={false}
+              disablePictureInPicture
+              controlsList="nodownload noplaybackrate"
+              className="absolute inset-0 h-full w-full object-contain pointer-events-none"
+              style={{ pointerEvents: 'none' }}
+              onContextMenu={(e) => e.preventDefault()}
             />
           )}
           <div className="absolute bottom-4 left-4 rounded-md bg-black/60 px-3 py-2 text-sm">
@@ -140,10 +160,15 @@ export default function VideoGrid({
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`absolute inset-0 h-full w-full ${
+            controls={false}
+            disablePictureInPicture
+            controlsList="nodownload noplaybackrate"
+            className={`absolute inset-0 h-full w-full pointer-events-none ${
               peerScreenShareOn ? 'object-contain' : 
               showChat ? 'object-cover' : 'object-cover'
             }`}
+            style={{ pointerEvents: 'none' }}
+            onContextMenu={(e) => e.preventDefault()}
           />
 
           {/* Lobby overlay */}
@@ -191,9 +216,14 @@ export default function VideoGrid({
             autoPlay
             playsInline
             muted
-            className={`absolute inset-0 h-full w-full ${
+            controls={false}
+            disablePictureInPicture
+            controlsList="nodownload noplaybackrate"
+            className={`absolute inset-0 h-full w-full pointer-events-none ${
               showChat ? 'object-cover' : 'object-cover'
             }`}
+            style={{ pointerEvents: 'none' }}
+            onContextMenu={(e) => e.preventDefault()}
           />
           
           {!camOn && (

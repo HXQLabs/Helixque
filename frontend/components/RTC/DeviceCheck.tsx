@@ -110,7 +110,12 @@ export default function DeviceCheck() {
                     autoPlay
                     playsInline
                     muted
-                    className="absolute inset-0 h-full w-full object-cover"
+                    controls={false}
+                    disablePictureInPicture
+                    controlsList="nodownload noplaybackrate"
+                    className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+                    style={{ pointerEvents: 'none' }}
+                    onContextMenu={(e) => e.preventDefault()}
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center bg-black">
