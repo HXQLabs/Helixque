@@ -540,7 +540,6 @@ export default function Room({
 
   useEffect(() => {
     if (!roomId || !socketRef.current) return;
-    console.log(`BHEJ RAHA HU BHAIIIIIIIIII ${camOn}`);
     socketRef.current.emit("media:state", { roomId, state: { micOn, camOn } });
   }, [micOn, camOn, roomId]);
 
@@ -709,7 +708,6 @@ export default function Room({
     });
 
     s.on("peer:media-state", ({ state }: { state: { micOn?: boolean; camOn?: boolean } }) => {
-      console.log(`YE BATA RAHA HAI BHAIIIIIIIIII KI ${state.camOn}`);
       if (typeof state?.micOn === "boolean") setPeerMicOn(state.micOn);
       if (typeof state?.camOn === "boolean") setPeerCamOn(state.camOn);
     });

@@ -120,7 +120,6 @@ io.on("connection", (socket: Socket) => {
 
   // --- Media state (aggregated) ---
   socket.on("media:state", ({ roomId, state }: { roomId: string; state: { micOn?: boolean; camOn?: boolean } }) => {
-    console.log(`MIL GAYA BHAIIIIIIIIII${state.camOn}`);
     // persist latest for this socket
     lastMediaState.set(socket.id, state);
     // forward to other peers in the room
