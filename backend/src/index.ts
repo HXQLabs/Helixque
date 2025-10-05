@@ -14,6 +14,8 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, { cors: { origin: "*" } });
+// store latest media state per-socket so late joiners can be informed
+const lastMediaState = new Map<string, { micOn?: boolean; camOn?: boolean }>();
 // io.adapter(createAdapter(pubClient, subClient));
 
 const userManager = new UserManager();
@@ -68,9 +70,24 @@ io.on("connection", (socket: Socket) => {
   }
 
   // ⬇️ Keep UserManager in sync when client explicitly joins later
-  socket.on("chat:join", ({ roomId }: { roomId: string; name?: string }) => {
+  socket.on("chat:join", async ({ roomId, name }: { roomId: string; name?: string }) => {
     if (roomId) userManager.setRoom(socket.id, roomId);
-    if (roomId) socket.join(roomId);
+    if (roomId) {
+      await socket.join(roomId);
+      // Immediately send the latest known media state of existing peers in the room
+      try {
+        const peers = await io.in(roomId).fetchSockets();
+        for (const p of peers) {
+          if (p.id === socket.id) continue;
+          const st = lastMediaState.get(p.id);
+          if (st) {
+            socket.emit("peer:media-state", { state: st, from: p.id });
+          }
+        }
+      } catch (err) {
+        // ignore fetch/send errors
+      }
+    }
   });
 
   // Screen share state and track management
@@ -103,7 +120,11 @@ io.on("connection", (socket: Socket) => {
 
   // --- Media state (aggregated) ---
   socket.on("media:state", ({ roomId, state }: { roomId: string; state: { micOn?: boolean; camOn?: boolean } }) => {
-    socket.to(roomId).emit("peer:media-state", { state });
+    console.log(`MIL GAYA BHAIIIIIIIIII${state.camOn}`);
+    // persist latest for this socket
+    lastMediaState.set(socket.id, state);
+    // forward to other peers in the room
+    socket.to(roomId).emit("peer:media-state", { state, from: socket.id });
   });
 
   // Legacy single toggles (optional; still supported)
@@ -146,6 +167,8 @@ io.on("connection", (socket: Socket) => {
       });
     }
 
+    // cleanup stored media state
+    lastMediaState.delete(socket.id);
     userManager.removeUser(socket.id);
   });
 

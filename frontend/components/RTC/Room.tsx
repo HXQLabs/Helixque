@@ -540,6 +540,7 @@ export default function Room({
 
   useEffect(() => {
     if (!roomId || !socketRef.current) return;
+    console.log(`BHEJ RAHA HU BHAIIIIIIIIII ${camOn}`);
     socketRef.current.emit("media:state", { roomId, state: { micOn, camOn } });
   }, [micOn, camOn, roomId]);
 
@@ -570,6 +571,8 @@ export default function Room({
     s.on("send-offer", async ({ roomId: rid }) => {
       setRoomId(rid);
       s.emit("chat:join", { roomId: rid, name });
+      // <- immediately send our current media state so the newly-joined partner gets it
+      s.emit("media:state", { roomId: rid, state: { micOn, camOn } });
       setLobby(false);
       setStatus("Connecting…");
       
@@ -592,6 +595,8 @@ export default function Room({
     s.on("offer", async ({ roomId: rid, sdp: remoteSdp }) => {
       setRoomId(rid);
       s.emit("chat:join", { roomId: rid, name });
+      // <- immediately send our current media state so the newly-joined partner gets it
+      s.emit("media:state", { roomId: rid, state: { micOn, camOn } });
       setLobby(false);
       setStatus("Connecting…");
       
@@ -704,6 +709,7 @@ export default function Room({
     });
 
     s.on("peer:media-state", ({ state }: { state: { micOn?: boolean; camOn?: boolean } }) => {
+      console.log(`YE BATA RAHA HAI BHAIIIIIIIIII KI ${state.camOn}`);
       if (typeof state?.micOn === "boolean") setPeerMicOn(state.micOn);
       if (typeof state?.camOn === "boolean") setPeerCamOn(state.camOn);
     });
