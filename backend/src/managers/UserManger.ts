@@ -298,8 +298,7 @@ export class UserManager {
     }
 
     // Teardown room links
-    const roomIdU = this.roomOf.get(userId);
-    if (roomIdU) this.roomManager.teardownRoom(roomIdU);
+    if (roomId) this.roomManager.teardownRoom(roomId);
 
     this.partnerOf.delete(userId);
     this.partnerOf.delete(partnerId);
@@ -308,7 +307,6 @@ export class UserManager {
 
     // Requeue caller immediately; notify partner their match ended
     if (!this.queue.includes(userId)) this.queue.push(userId);
-    const partnerUser = this.users.find((u) => u.socket.id === partnerId);
     if (partnerUser && this.online.has(partnerId)) {
       partnerUser.socket.emit("partner:left", { reason: "next" });
       // Optional: also requeue partner automatically
