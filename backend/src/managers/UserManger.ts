@@ -291,10 +291,13 @@ export class UserManager {
     const roomId = this.roomOf.get(userId) || this.roomOf.get(partnerId);
     
     if (roomId && user && partnerUser) {
-      // Emit "Peer left" to the chat room so both users see it
       const room = `chat:${roomId}`;
-      // Send to the room - this sends to everyone in the room including both users
-      user.socket.nsp.in(room).emit("chat:system", { text: "Peer left the chat", ts: Date.now() });
+      
+      // Send "Peer left the chat" to the user who clicked Next, so they see it in their chat
+      user.socket.emit("chat:system", { text: "Peer left the chat", ts: Date.now() });
+      
+      // Send "Peer left the chat" to the current peer to notify them
+      partnerUser.socket.nsp.in(room).emit("chat:system", { text: "Peer left the chat", ts: Date.now() });
     }
 
     // Teardown room links
