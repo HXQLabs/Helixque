@@ -16,6 +16,8 @@ export default function DeviceCheck() {
   const [name, setName] = useState("");
   const [localAudioTrack, setLocalAudioTrack] = useState<MediaStreamTrack | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<MediaStreamTrack | null>(null);
+  const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const localVideoTrackRef = useRef<MediaStreamTrack | null>(null);
   const [joined, setJoined] = useState(false);
   const [videoOn, setVideoOn] = useState(true);
   const [audioOn, setAudioOn] = useState(true);
@@ -49,7 +51,9 @@ export default function DeviceCheck() {
       localAudioTrack?.stop();
       
       setLocalAudioTrack(audioTrack);
+      localAudioTrackRef.current = audioTrack;
       setLocalVideoTrack(videoTrack);
+      localVideoTrackRef.current = videoTrack;
 
       if (videoRef.current) {
         videoRef.current.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
@@ -102,24 +106,25 @@ export default function DeviceCheck() {
 
     // cleanup: stop tracks on unmount
     return () => {
-      [localAudioTrack, localVideoTrack].forEach((t) => t?.stop());
+      [localAudioTrackRef.current, localVideoTrackRef.current].forEach((t) => t?.stop());
       navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoOn, audioOn]);
+  }, [videoOn, audioOn, getCam]); // Add getCam to dependencies to ensure latest version is used
 
   if (joined) {
 
     const handleOnLeave = () => {
       setJoined(false);
       try {
-        localAudioTrack?.stop();
+        localAudioTrackRef.current?.stop();
       } catch {}
       try {
-        localVideoTrack?.stop();
+        localVideoTrackRef.current?.stop();
       } catch {}
       setLocalAudioTrack(null);
       setLocalVideoTrack(null);
+      localAudioTrackRef.current = null;
+      localVideoTrackRef.current = null;
     };
 
     return (
