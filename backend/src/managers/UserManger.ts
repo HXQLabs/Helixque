@@ -290,7 +290,7 @@ export class UserManager {
     const partnerUser = this.users.find((u) => u.socket.id === partnerId);
     const roomId = this.roomOf.get(userId) || this.roomOf.get(partnerId);
     
-    if (roomId && user && partnerUser) {
+    if (roomId && user && partnerUser && this.online.has(userId) && this.online.has(partnerId)) {
       // Emit "Peer left" to the chat room so both users see it
       const room = `chat:${roomId}`;
       // Send to the room - this sends to everyone in the room including both users
