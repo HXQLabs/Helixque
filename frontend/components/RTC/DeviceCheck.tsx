@@ -24,13 +24,13 @@ export default function DeviceCheck() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const getCam = async () => {
+  const getCam = useCallback(async () => {
     try {
       // Only try to get media if either audio or video is enabled
       if (!videoOn && !audioOn) {
         // If both are disabled, stop existing tracks
-        localVideoTrack?.stop();
-        localAudioTrack?.stop();
+        localVideoTrackRef.current?.stop();
+        localAudioTrackRef.current?.stop();
         setLocalVideoTrack(null);
         setLocalAudioTrack(null);
         if (videoRef.current) {
@@ -47,8 +47,8 @@ export default function DeviceCheck() {
       const videoTrack = stream.getVideoTracks()[0] || null;
       
       // Stop existing tracks to prevent multiple active streams
-      localVideoTrack?.stop();
-      localAudioTrack?.stop();
+      localVideoTrackRef.current?.stop();
+      localAudioTrackRef.current?.stop();
       
       setLocalAudioTrack(audioTrack);
       localAudioTrackRef.current = audioTrack;
@@ -71,15 +71,15 @@ export default function DeviceCheck() {
       }
       
       // In any case, clear the existing tracks if access failed
-      localVideoTrack?.stop();
-      localAudioTrack?.stop();
+      localVideoTrackRef.current?.stop();
+      localAudioTrackRef.current?.stop();
       setLocalVideoTrack(null);
       setLocalAudioTrack(null);
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
     }
-  };
+  }, [videoOn, audioOn]); // Only include videoOn and audioOn as dependencies
 
   useEffect(() => {
     getCam();
@@ -109,7 +109,7 @@ export default function DeviceCheck() {
       [localAudioTrackRef.current, localVideoTrackRef.current].forEach((t) => t?.stop());
       navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange);
     };
-  }, [videoOn, audioOn, getCam]); // Add getCam to dependencies to ensure latest version is used
+  }, [videoOn, audioOn]); // Removed getCam from dependencies since it's now properly wrapped with useCallback
 
   if (joined) {
 
