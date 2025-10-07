@@ -24,12 +24,30 @@ export default function DeviceCheck() {
 
   const getCam = async () => {
     try {
+      // Only try to get media if either audio or video is enabled
+      if (!videoOn && !audioOn) {
+        // If both are disabled, stop existing tracks
+        localVideoTrack?.stop();
+        localAudioTrack?.stop();
+        setLocalVideoTrack(null);
+        setLocalAudioTrack(null);
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: videoOn,
         audio: audioOn,
       });
       const audioTrack = stream.getAudioTracks()[0] || null;
       const videoTrack = stream.getVideoTracks()[0] || null;
+      
+      // Stop existing tracks to prevent multiple active streams
+      localVideoTrack?.stop();
+      localAudioTrack?.stop();
+      
       setLocalAudioTrack(audioTrack);
       setLocalVideoTrack(videoTrack);
 
@@ -39,17 +57,53 @@ export default function DeviceCheck() {
       }
     } catch (e: any) {
       const errorMessage = e?.message || "Could not access camera/microphone";
-      toast.error("Device Access Error", {
-        description: errorMessage
-      });
+      
+      // Only show error toast if this isn't about permissions being denied
+      // to avoid spamming the user with error messages if they denied permissions
+      if (!e.message?.toLowerCase().includes("permission") && !e.message?.toLowerCase().includes("denied")) {
+        toast.error("Device Access Error", {
+          description: errorMessage
+        });
+      }
+      
+      // In any case, clear the existing tracks if access failed
+      localVideoTrack?.stop();
+      localAudioTrack?.stop();
+      setLocalVideoTrack(null);
+      setLocalAudioTrack(null);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
     }
   };
 
   useEffect(() => {
     getCam();
+    
+    // Set up device change listener to detect when user grants camera permission after denial
+    const handleDeviceChange = async () => {
+      // Check if camera devices are now accessible by trying to enumerate them
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        // If we have video input devices now, try to get the camera
+        if (videoDevices.length > 0) {
+          getCam();
+        }
+      } catch (e) {
+        // If we still can't enumerate devices, the permission is still denied
+        console.debug('Camera permission still denied or not accessible:', e);
+      }
+    };
+
+    // Add event listener for when media devices change (like when permissions are granted)
+    navigator.mediaDevices?.addEventListener('devicechange', handleDeviceChange);
+
     // cleanup: stop tracks on unmount
     return () => {
       [localAudioTrack, localVideoTrack].forEach((t) => t?.stop());
+      navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoOn, audioOn]);
