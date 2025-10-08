@@ -7,9 +7,16 @@
     "prepare": "husky install",
     "lint:frontend": "cd frontend && npm run lint",
     "check:backend": "cd backend && npm run build",
-    "precommit": "npm run lint:frontend"
+    "precommit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "frontend/**/*.{ts,tsx,jsx}": [
+      "cd frontend && npx eslint --fix --ext .ts,.tsx,.jsx",
+      "git add ."
+    ]
   },
   "devDependencies": {
-    "husky": "^8.0.0"
+    "husky": "^8.0.0",
+    "lint-staged": "^13.0.0"
   }
 }

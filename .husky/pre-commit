@@ -1,5 +1,5 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
-echo "Running pre-commit checks: lint frontend"
-npm run precommit || exit 1
+echo "Running pre-commit checks: lint staged frontend files"
+npx lint-staged || exit 1
