@@ -285,9 +285,23 @@ export class UserManager {
     this.bans.set(userId, bansU);
     this.bans.set(partnerId, bansP);
 
+    // Send system messages to both users before tearing down the room
+    const user = this.users.find((u) => u.socket.id === userId);
+    const partnerUser = this.users.find((u) => u.socket.id === partnerId);
+    const roomId = this.roomOf.get(userId) || this.roomOf.get(partnerId);
+    
+    if (roomId && user && partnerUser) {
+      const room = `chat:${roomId}`;
+      
+      // Send "Peer left the chat" to the user who clicked Next, so they see it in their chat
+      user.socket.emit("chat:system", { text: "Peer left the chat", ts: Date.now() });
+      
+      // Send "Peer left the chat" to the current peer to notify them
+      partnerUser.socket.nsp.in(room).emit("chat:system", { text: "Peer left the chat", ts: Date.now() });
+    }
+
     // Teardown room links
-    const roomIdU = this.roomOf.get(userId);
-    if (roomIdU) this.roomManager.teardownRoom(roomIdU);
+    if (roomId) this.roomManager.teardownRoom(roomId);
 
     this.partnerOf.delete(userId);
     this.partnerOf.delete(partnerId);
@@ -296,7 +310,6 @@ export class UserManager {
 
     // Requeue caller immediately; notify partner their match ended
     if (!this.queue.includes(userId)) this.queue.push(userId);
-    const partnerUser = this.users.find((u) => u.socket.id === partnerId);
     if (partnerUser && this.online.has(partnerId)) {
       partnerUser.socket.emit("partner:left", { reason: "next" });
       // Optional: also requeue partner automatically
