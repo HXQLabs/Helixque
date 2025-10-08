@@ -52,12 +52,6 @@ export default function DeviceCheck() {
       [localAudioTrack, localVideoTrack].forEach((t) => t?.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // re-init on toggles
-  useEffect(() => {
-    getCam();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoOn, audioOn]);
 
   if (joined) {
@@ -97,7 +91,7 @@ export default function DeviceCheck() {
         </div>
 
         {/* Main content grid */}
-        <div className="grid lg:grid-cols-2 gap-8 items-start">
+        <div className="grid lg:grid-cols-2 gap-8 items-stretch">
           
           {/* Left Side - Video Preview */}
           <div className="space-y-4 h-full flex flex-col">
@@ -119,83 +113,87 @@ export default function DeviceCheck() {
                 )}
                 
                 {/* Status indicators */}
-                <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
+                <div className="absolute bottom-3 left-3 flex items-center gap-2">
                   <div className="rounded-md bg-black/60 px-2 py-1 text-xs text-white">
-                  <span>{name || "You"}</span>
-                </div>
-                {!audioOn && (
-    <span className="inline-flex items-center gap-1 rounded bg-red-600/80 px-1.5 py-0.5 text-xs text-white">
-      <IconMicrophoneOff className="h-3 w-3" />
-      <span>muted</span>
-    </span>
-  )}
-                </div>
-                
-                {/* Control buttons below video */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center justify-center gap-3 z-10">
-                  <Tooltip content={audioOn ? "Turn off microphone" : "Turn on microphone"} position="top">
-                    <button
-                      onClick={() => setAudioOn((a) => !a)}
-                      className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
-                        audioOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-                      }`}
-                    >
-                      {audioOn ? <IconMicrophone className="h-5 w-5 text-white" /> : <IconMicrophoneOff className="h-5 w-5 text-white" />}
-                    </button>
-                  </Tooltip>
-
-                  <Tooltip content={videoOn ? "Turn off camera" : "Turn on camera"} position="top">
-                    <button
-                      onClick={() => setVideoOn((v) => !v)}
-                      className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
-                        videoOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
-                      }`}
-                    >
-                      {videoOn ? <IconVideo className="h-5 w-5 text-white" /> : <IconVideoOff className="h-5 w-5 text-white" />}
-                    </button>
-                  </Tooltip>
-
-                  <Tooltip content="Refresh devices" position="top">
-                    <button
-                      onClick={getCam}
-                      className="cursor-pointer h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
-                    >
-                      <IconRefresh className="h-5 w-5 text-white" />
-                    </button>
-                  </Tooltip>
+                    <span>{name || "You"}</span>
+                  </div>
+                  {!audioOn && (
+                    <span className="inline-flex items-center gap-1 rounded bg-red-600/80 px-1.5 py-0.5 text-xs text-white">
+                      <IconMicrophoneOff className="h-3 w-3" />
+                      <span>muted</span>
+                    </span>
+                  )}
                 </div>
               </div>
+            </div>
+
+            {/* Control buttons below video */}
+            <div className="flex items-center justify-center gap-2">
+              <Tooltip content={audioOn ? "Turn off microphone" : "Turn on microphone"} position="bottom">
+                <button
+                  onClick={() => setAudioOn((a) => !a)}
+                  className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
+                    audioOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                  }`}
+                >
+                  {audioOn ? <IconMicrophone className="h-5 w-5 text-white" /> : <IconMicrophoneOff className="h-5 w-5 text-white" />}
+                </button>
+              </Tooltip>
+
+              <Tooltip content={videoOn ? "Turn off camera" : "Turn on camera"} position="bottom">
+                <button
+                  onClick={() => setVideoOn((v) => !v)}
+                  className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
+                    videoOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
+                  }`}
+                >
+                  {videoOn ? <IconVideo className="h-5 w-5 text-white" /> : <IconVideoOff className="h-5 w-5 text-white" />}
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Refresh devices" position="bottom">
+                <button
+                  onClick={getCam}
+                  className="cursor-pointer h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                >
+                  <IconRefresh className="h-5 w-5 text-white" />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
           {/* Right Side - Join Form */}
-          <div className="">
-            <div className="w-full h-full p-8 rounded-2xl border border-white/10 bg-neutral-900/50 backdrop-blur shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-              <div className="flex flex-col gap-4">
-                <h2 className="text-2xl font-semibold text-white">Join the conversation</h2>
-                
-                <div className="flex flex-col gap-1">
-                  <label className="block text-sm font-medium text-gray-300">
-                    What should we call you?
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your name"
-                    className="w-full h-12 px-4 rounded-xl border border-white/10 bg-neutral-800/50 text-white placeholder-neutral-500 focus:border-white/30 focus:outline-none transition-colors backdrop-blur"
-                  />
+          <div className="space-y-6">
+            <div className="p-8 rounded-2xl border border-white/10 bg-neutral-900/50 backdrop-blur shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+              <div className="space-y-6">
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-2xl font-semibold text-white">Join the conversation</h2>
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      What should we call you?
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter your name"
+                      className="w-full h-12 px-4 rounded-xl border border-white/10 bg-neutral-800/50 text-white placeholder-neutral-500 focus:border-white/30 focus:outline-none transition-colors backdrop-blur"
+                    />
+                    </div>
+                    <button
+                      onClick={() => setJoined(true)}
+                      disabled={!name.trim()}
+                      className="cursor-pointer w-full h-12 bg-white text-black rounded-xl font-medium hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 disabled:hover:bg-white"
+                    >
+                      Join Meeting
+                    </button>
+
+                  <p className="text-xs text-neutral-500 text-center">
+                    By joining, you agree to our terms of service and privacy policy
+                  </p>
                 </div>
-                <button
-                  onClick={() => setJoined(true)}
-                  disabled={!name.trim()}
-                  className="cursor-pointer w-full h-12 bg-white text-black rounded-xl font-medium hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 disabled:hover:bg-white"
-                >
-                  Join Meeting
-                </button>
-                <p className="text-xs text-neutral-500 text-center">
-                  By joining, you agree to our terms of service and privacy policy
-                </p>
+
               </div>
             </div>
           </div>
