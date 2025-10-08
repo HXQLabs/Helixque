@@ -85,7 +85,7 @@ npm install
 npm run prepare
 ```
 
-2. Commit as usual — the pre-commit hook will run `npm run lint:frontend` and `npm run check:backend`.
+2. Commit as usual — the pre-commit hook will run linting on staged frontend files via `lint-staged` (this runs ESLint with `--fix` on staged files matching `frontend/**/*.{ts,tsx,jsx}`). The backend check script still exists in `package.json` but is not enabled by default in the pre-commit hook.
 
 If you prefer not to run hooks locally, you can skip them with `git commit --no-verify`.
 
