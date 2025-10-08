@@ -74,6 +74,21 @@ cd frontend && npm run dev
 
 Open your browser at `http://localhost:3000` and allow camera/microphone access. 🎉
 
+## Developer setup: Husky pre-commit hooks
+
+This repository includes Husky pre-commit hooks to run linting and checks before commits. To enable the hooks locally after cloning:
+
+1. From the repo root run:
+
+```bash
+npm install
+npm run prepare
+```
+
+2. Commit as usual — the pre-commit hook will run `npm run lint:frontend` and `npm run check:backend`.
+
+If you prefer not to run hooks locally, you can skip them with `git commit --no-verify`.
+
 ## 🌟 Features
 
 - **Enhanced UI & Layout**

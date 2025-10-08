@@ -1,0 +1,15 @@
+{
+  "name": "helixque-root",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["frontend", "backend"],
+  "scripts": {
+    "prepare": "husky install",
+    "lint:frontend": "cd frontend && npm run lint",
+    "check:backend": "cd backend && npm run build",
+    "precommit": "npm run lint:frontend"
+  },
+  "devDependencies": {
+    "husky": "^8.0.0"
+  }
+}
