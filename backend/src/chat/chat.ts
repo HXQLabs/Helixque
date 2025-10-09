@@ -1,5 +1,5 @@
 // server/chat.ts
-import type { Server, Socket } from "socket.io";
+import type { Server, Socket, Namespace, RemoteSocket } from "socket.io";
 
 type ChatHistoryItem = {
   text: string;
@@ -11,7 +11,7 @@ type ChatHistoryItem = {
 
 const MAX_HISTORY = 300;
 
-function getData(socket: Socket): any {
+function getData(socket: { data?: any }): any {
   return (socket.data as any) || ((socket as any).data = {});
 }
 
@@ -19,7 +19,7 @@ function getRoomKey(roomId: string): string {
   return `chat:${roomId}`;
 }
 
-function pushHistory(socket: Socket, roomId: string, item: ChatHistoryItem) {
+function pushHistory(socket: Socket | RemoteSocket<any, any> | { data?: any }, roomId: string, item: ChatHistoryItem) {
   const data = getData(socket);
   data.chatHistory = data.chatHistory || {};
   const room = getRoomKey(roomId);
@@ -30,16 +30,7 @@ function pushHistory(socket: Socket, roomId: string, item: ChatHistoryItem) {
   }
 }
 
-// backend/src/chat/chat.ts
-
-import type { Server, Socket, Namespace } from "socket.io";
-
-async function fanoutHistoryToRoom(
-  io: Server | Namespace,
-  roomId: string,
-  item: ChatHistoryItem,
-  opts?: { excludeId?: string }
-) {
+async function fanoutHistoryToRoom(io: Server | Namespace, roomId: string, item: ChatHistoryItem, opts?: { excludeId?: string }) {
   const room = getRoomKey(roomId);
   try {
     const sockets = await io.in(room).fetchSockets();
@@ -77,12 +68,15 @@ export async function joinChatRoom(socket: Socket, roomId: string, name: string)
     // show the join message to the joining user
     const joinMsg = { text: `${name} joined the chat`, ts: Date.now() };
     socket.emit("chat:system", joinMsg);
-    pushHistory(socket, roomId, { text: joinMsg.text, from: "system", clientId: "system", ts: joinMsg.ts!, kind: "system" });
 
     // broadcast the join to everyone else in the room
     const forPeers = { text: `${name} joined the chat`, ts: Date.now() };
     socket.to(room).emit("chat:system", forPeers);
-    await fanoutHistoryToRoom(socket.nsp, roomId, { text: forPeers.text, from: "system", clientId: "system", ts: forPeers.ts!, kind: "system" });
+    await fanoutHistoryToRoom(
+      socket.nsp,
+      roomId,
+      { text: forPeers.text, from: "system", clientId: "system", ts: forPeers.ts!, kind: "system" }
+    );
   }
 
   // After successful join, send recent history for this room for this socket
@@ -115,7 +109,7 @@ export function wireChat(io: Server, socket: Socket) {
     };
 
     socket.nsp.in(`chat:${roomId}`).emit("chat:message", final);
-    fanoutHistoryToRoom(io, roomId, { ...final, kind: "user" });
+    fanoutHistoryToRoom(socket.nsp, roomId, { ...final, kind: "user" }, { excludeId: socket.id });
     pushHistory(socket, roomId, { ...final, kind: "user" });
   });
 
@@ -133,7 +127,7 @@ export function wireChat(io: Server, socket: Socket) {
       socket.leave(room);
       const leaveMsg = { text: `${name} left the chat`, ts: Date.now() };
       socket.nsp.in(room).emit("chat:system", leaveMsg);
-      fanoutHistoryToRoom(io, roomId, { text: leaveMsg.text, from: "system", clientId: "system", ts: leaveMsg.ts!, kind: "system" });
+      fanoutHistoryToRoom(socket.nsp, roomId, { text: leaveMsg.text, from: "system", clientId: "system", ts: leaveMsg.ts!, kind: "system" });
     }
     const data = getData(socket);
     if (data.chatNames) delete data.chatNames[room];
@@ -155,7 +149,7 @@ export function wireChat(io: Server, socket: Socket) {
         const sys = { text: `${displayName} left the chat`, ts: Date.now() };
         socket.nsp.in(room).emit("chat:system", sys);
         const rid = room.replace(/^chat:/, "");
-        fanoutHistoryToRoom(io, rid, { text: sys.text, from: "system", clientId: "system", ts: sys.ts!, kind: "system" });
+        fanoutHistoryToRoom(socket.nsp, rid, { text: sys.text, from: "system", clientId: "system", ts: sys.ts!, kind: "system" }, { excludeId: socket.id });
       }
     }
   });

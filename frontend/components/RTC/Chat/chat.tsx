@@ -161,9 +161,6 @@ export default function ChatPanel({
     socket.on("chat:history", onHistory);
  //   socket.on("partner:left", onPartnerLeft);
 
-    // Request history after listeners are ready; server will also push on join
-    socket.emit("chat:history:get", { roomId });
-
     // now that listeners are wired, perform initial join
     join(); // initial
 
