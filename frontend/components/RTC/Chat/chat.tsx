@@ -37,6 +37,29 @@ export default function ChatPanel({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidRef = useRef<string | null>(mySocketId ?? null);
+  const storageKeyRef = useRef<string>(`chat:last`);
+  // continuous log across matches; no conversation reset
+
+  // sessionStorage helpers
+  const loadPersisted = () => {
+    try {
+      const raw = sessionStorage.getItem(storageKeyRef.current);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { messages?: ChatMessage[] };
+      return Array.isArray(parsed?.messages) ? parsed.messages.slice(-MAX_BUFFER) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const savePersisted = (msgs: ChatMessage[]) => {
+    try {
+      sessionStorage.setItem(
+        storageKeyRef.current,
+        JSON.stringify({ messages: msgs.slice(-MAX_BUFFER) })
+      );
+    } catch {}
+  };
 
   // derive & keep socket.id fresh for self-dedupe
   useEffect(() => {
@@ -72,6 +95,16 @@ export default function ChatPanel({
   useEffect(() => {
     if (!socket || !roomId) return;
 
+    // stable key for last conversation continuity
+    storageKeyRef.current = `chat:last`;
+
+    // hydrate from sessionStorage before any server events
+    if (messages.length === 0) {
+      const cached = loadPersisted();
+      if (cached && cached.length > 0) setMessages(cached);
+    }
+    // keep existing messages; no reset on next match
+
     const join = () => socket.emit("chat:join", { roomId, name });
     // initial join will be emitted after listeners are attached
     const onConnect = () => {
@@ -86,7 +119,9 @@ export default function ChatPanel({
       if (m.clientId === myId) return;
       setMessages((prev) => {
         const next = [...prev, { ...m, kind: "user" as const }];
-        return next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+        const trimmed = next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+        savePersisted(trimmed);
+        return trimmed;
       });
         try {
           // Only show toast if chat window is closed
@@ -132,7 +167,9 @@ export default function ChatPanel({
           ...prev,
           { text, from: "system", clientId: "system", ts: m.ts ?? Date.now(), kind: "system" as const },
         ];
-        return next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+        const trimmed = next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+        savePersisted(trimmed);
+        return trimmed;
       });
     };
 
@@ -147,7 +184,16 @@ export default function ChatPanel({
     const onHistory = (payload: { roomId: string; messages: ChatMessage[] }) => {
       if (!payload || payload.roomId !== roomId) return;
       const normalized = (payload.messages || []).slice(-MAX_BUFFER);
-      setMessages(normalized);
+      // Merge server history into existing messages with simple de-dupe
+      setMessages((prev) => {
+        const existingKeys = new Set(prev.map((x) => `${x.ts}|${x.clientId}|${x.text}`));
+        const additions = normalized.filter((x) => !existingKeys.has(`${x.ts}|${x.clientId}|${x.text}`));
+        if (additions.length === 0) return prev;
+        const merged = [...prev, ...additions];
+        const trimmed = merged.length > MAX_BUFFER ? merged.slice(-MAX_BUFFER) : merged;
+        savePersisted(trimmed);
+        return trimmed;
+      });
     };
 
  //   const onPartnerLeft = ({ reason }: { reason: string }) => {
@@ -191,7 +237,9 @@ export default function ChatPanel({
     // optimistic add
     setMessages((prev) => {
       const next = [...prev, { ...payload, kind: "user" as const }];
-      return next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+      const trimmed = next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+      savePersisted(trimmed);
+      return trimmed;
     });
     try {
       // toast for outgoing message (short & subtle)
