@@ -144,6 +144,12 @@ export default function ChatPanel({
       }
     };
 
+    const onHistory = (payload: { roomId: string; messages: ChatMessage[] }) => {
+      if (!payload || payload.roomId !== roomId) return;
+      const normalized = (payload.messages || []).slice(-MAX_BUFFER);
+      setMessages(normalized);
+    };
+
  //   const onPartnerLeft = ({ reason }: { reason: string }) => {
   //    onSystem({ text: `Your partner left (${reason}).` });
   //  };
@@ -152,10 +158,11 @@ export default function ChatPanel({
     socket.on("chat:message", onMsg);
     socket.on("chat:system", onSystem);
     socket.on("chat:typing", onTyping);
+    socket.on("chat:history", onHistory);
  //   socket.on("partner:left", onPartnerLeft);
 
-    // clear chat when switching rooms BEFORE join to avoid wiping fresh system events
-    setMessages([]);
+    // Request history after listeners are ready; server will also push on join
+    socket.emit("chat:history:get", { roomId });
 
     // now that listeners are wired, perform initial join
     join(); // initial
@@ -165,6 +172,7 @@ export default function ChatPanel({
       socket.off("chat:message", onMsg);
       socket.off("chat:system", onSystem);
       socket.off("chat:typing", onTyping);
+      socket.off("chat:history", onHistory);
  //     socket.off("partner:left", onPartnerLeft);
       // stop typing when leaving room/unmounting
       socket.emit("chat:typing", { roomId, from: name, typing: false });
