@@ -30,11 +30,21 @@ function pushHistory(socket: Socket, roomId: string, item: ChatHistoryItem) {
   }
 }
 
-async function fanoutHistoryToRoom(io: Server, roomId: string, item: ChatHistoryItem) {
+// backend/src/chat/chat.ts
+
+import type { Server, Socket, Namespace } from "socket.io";
+
+async function fanoutHistoryToRoom(
+  io: Server | Namespace,
+  roomId: string,
+  item: ChatHistoryItem,
+  opts?: { excludeId?: string }
+) {
   const room = getRoomKey(roomId);
   try {
     const sockets = await io.in(room).fetchSockets();
     for (const s of sockets) {
+      if (opts?.excludeId && s.id === opts.excludeId) continue;
       pushHistory(s, roomId, item);
     }
   } catch {}
