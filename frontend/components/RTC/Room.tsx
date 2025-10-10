@@ -115,23 +115,12 @@ export default function Room({
       pc.addTrack(localAudioTrack);
     }
     
-    if (camOn) {
-      let videoTrack = currentVideoTrackRef.current;
-      if (!videoTrack || videoTrack.readyState === "ended") {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          videoTrack = stream.getVideoTracks()[0];
-          currentVideoTrackRef.current = videoTrack;
-        } catch (err) {
-          console.error("Error creating video track:", err);
-          videoTrack = null;
-        }
-      }
-      
-      if (videoTrack && videoTrack.readyState === "live") {
-        const vs = pc.addTrack(videoTrack);
-        videoSenderRef.current = vs;
-      }
+    if (camOn && currentVideoTrackRef.current && currentVideoTrackRef.current.readyState === "live") {
+      const vs = pc.addTrack(currentVideoTrackRef.current);
+      videoSenderRef.current = vs;
+    } else {
+      // Ensure no stale track is reused
+      currentVideoTrackRef.current = null;
     }
 
     ensureRemoteStreamLocal();
@@ -139,6 +128,7 @@ export default function Room({
       console.log("🎯 Received track event!");
       if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
       if (e.track.kind === 'video') {
+        if (!peerCamOn) return;
         remoteStreamRef.current.getVideoTracks().forEach(track => 
           remoteStreamRef.current?.removeTrack(track)
         );
@@ -580,6 +570,8 @@ export default function Room({
     s.on("send-offer", async ({ roomId: rid }) => {
       setRoomId(rid);
       s.emit("chat:join", { roomId: rid, name });
+      // <- immediately send our current media state so the newly-joined partner gets it
+      s.emit("media:state", { roomId: rid, state: { micOn, camOn } });
       setLobby(false);
       setStatus("Connecting…");
       
@@ -602,6 +594,8 @@ export default function Room({
     s.on("offer", async ({ roomId: rid, sdp: remoteSdp }) => {
       setRoomId(rid);
       s.emit("chat:join", { roomId: rid, name });
+      // <- immediately send our current media state so the newly-joined partner gets it
+      s.emit("media:state", { roomId: rid, state: { micOn, camOn } });
       setLobby(false);
       setStatus("Connecting…");
       
