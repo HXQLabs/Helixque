@@ -137,14 +137,7 @@ io.on("connection", (socket: Socket) => {
     // presence down (disabled Redis)
     // presenceDown(socket.id).catch((e) => console.warn("[presenceDown]", e.message));
 
-    // Optional: announce "left" to current room (mirrors joinChatRoom)
-    const u = userManager.getUser(socket.id);
-    if (u?.roomId) {
-      socket.nsp.in(`chat:${u.roomId}`).emit("chat:system", {
-        text: `${u.name} left the chat`,
-        ts: Date.now(),
-      });
-    }
+  // Chat leave is announced within chat wiring via "disconnecting" handler
 
     userManager.removeUser(socket.id);
   });

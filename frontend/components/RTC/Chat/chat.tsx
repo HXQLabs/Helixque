@@ -39,6 +39,11 @@ export default function ChatPanel({
   const sidRef = useRef<string | null>(mySocketId ?? null);
   const storageKeyRef = useRef<string>(`chat:last`);
   // continuous log across matches; no conversation reset
+  const lastSystemRef = useRef<{ text: string; ts: number } | null>(null);
+  const pendingSystemRef = useRef<{ text: string; ts: number }[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingJoinRef = useRef<{ text: string; ts: number } | null>(null);
+  const pendingJoinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // sessionStorage helpers
   const loadPersisted = () => {
@@ -159,18 +164,107 @@ export default function ChatPanel({
       };
       const text = normalize(m.text);
 
-      setMessages((prev) => {
-        // simple de-dupe: if last system message has identical text, skip
-        const last = prev[prev.length - 1];
-        if (last?.kind === "system" && last.text === text) return prev;
-        const next = [
-          ...prev,
-          { text, from: "system", clientId: "system", ts: m.ts ?? Date.now(), kind: "system" as const },
-        ];
-        const trimmed = next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
-        savePersisted(trimmed);
-        return trimmed;
-      });
+      // drop duplicates within a short time window
+      const incomingTs = m.ts ?? Date.now();
+      const last = lastSystemRef.current;
+      if (last && last.text === text && Math.abs(incomingTs - last.ts) < 1500) {
+        return; // duplicate burst (live + history), ignore
+      }
+      lastSystemRef.current = { text, ts: incomingTs };
+
+      const isLeft = /left the chat/i.test(text);
+      const isJoined = /joined the chat/i.test(text);
+
+      // Gate: delay joined slightly so a preceding left can be inserted first
+      if (isJoined) {
+        // replace any existing pending join with the latest
+        pendingJoinRef.current = { text, ts: incomingTs };
+        if (pendingJoinTimerRef.current) clearTimeout(pendingJoinTimerRef.current);
+        pendingJoinTimerRef.current = setTimeout(() => {
+          // if no left arrived in the window, release the pending join into the batch
+          if (pendingJoinRef.current) {
+            pendingSystemRef.current.push(pendingJoinRef.current);
+            pendingJoinRef.current = null;
+            scheduleFlush();
+          }
+        }, 700);
+        return; // don't immediately add joined
+      }
+
+      // If a left arrives and a join is pending, emit left then the pending join
+      if (isLeft && pendingJoinRef.current) {
+        pendingSystemRef.current.push({ text, ts: incomingTs });
+        pendingSystemRef.current.push(pendingJoinRef.current);
+        pendingJoinRef.current = null;
+        if (pendingJoinTimerRef.current) {
+          clearTimeout(pendingJoinTimerRef.current);
+          pendingJoinTimerRef.current = null;
+        }
+        scheduleFlush(true);
+        return;
+      }
+
+      // Default: buffer briefly to coalesce and order
+      pendingSystemRef.current.push({ text, ts: incomingTs });
+      scheduleFlush();
+
+      function scheduleFlush(immediate = false) {
+        if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = setTimeout(() => {
+        const batch = pendingSystemRef.current.splice(0, pendingSystemRef.current.length);
+        if (batch.length === 0) return;
+        // sort by timestamp; when very close in time, place "left" before "joined"
+        const nearWindowMs = 800;
+        const isLeft = (t: string) => /left the chat/i.test(t);
+        const isJoined = (t: string) => /joined the chat/i.test(t);
+        batch.sort((a, b) => {
+          if (a.ts === b.ts || Math.abs(a.ts - b.ts) < nearWindowMs) {
+            if (isLeft(a.text) && isJoined(b.text)) return -1;
+            if (isJoined(a.text) && isLeft(b.text)) return 1;
+          }
+          return a.ts - b.ts;
+        });
+        setMessages((prev) => {
+          let next = prev.slice();
+          for (const item of batch) {
+            // skip if an identical system text exists very recently (avoid live+history duplicates only)
+            const nowWindowMs = 2000;
+            const tail = next.slice(-8);
+            const hasRecentSame = tail.some(
+              (x) => x.kind === "system" && x.text === item.text && Math.abs(item.ts - x.ts) < nowWindowMs
+            );
+            if (hasRecentSame) continue;
+
+            const isLeftMsg = /left the chat/i.test(item.text);
+            const isJoinedMsg = /joined the chat/i.test(item.text);
+
+            // If a LEFT comes after a JOIN already shown, reorder so LEFT appears before JOIN
+            if (isLeftMsg && tail.length > 0) {
+              const lastIdx = next.length - 1;
+              const lastMsg = next[lastIdx];
+              if (
+                lastMsg &&
+                lastMsg.kind === "system" &&
+                /joined the chat/i.test(lastMsg.text) &&
+                Math.abs(item.ts - lastMsg.ts) < 3000
+              ) {
+                // remove the last JOIN, then append LEFT then re-append JOIN
+                next = next.slice(0, lastIdx);
+                next.push({ text: item.text, from: "system", clientId: "system", ts: item.ts, kind: "system" as const });
+                next.push(lastMsg);
+                continue;
+              }
+            }
+
+            // default append
+            next.push({ text: item.text, from: "system", clientId: "system", ts: item.ts, kind: "system" as const });
+          }
+          const trimmed = next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
+          savePersisted(trimmed);
+          return trimmed;
+        });
+        }, immediate ? 0 : 350);
+      }
     };
 
     const onTyping = ({ from, typing }: { from: string; typing: boolean }) => {
@@ -186,8 +280,12 @@ export default function ChatPanel({
       const normalized = (payload.messages || []).slice(-MAX_BUFFER);
       // Merge server history into existing messages with simple de-dupe
       setMessages((prev) => {
-        const existingKeys = new Set(prev.map((x) => `${x.ts}|${x.clientId}|${x.text}`));
-        const additions = normalized.filter((x) => !existingKeys.has(`${x.ts}|${x.clientId}|${x.text}`));
+        const existingKeys = new Set(prev.map((x) => `${x.kind}|${x.ts}|${x.clientId}|${x.text}`));
+        const additions = normalized.filter((x) => {
+          // normalize system messages before checking duplicates
+          const key = `${(x.kind || 'user')}|${x.ts}|${x.clientId}|${x.text}`;
+          return !existingKeys.has(key);
+        });
         if (additions.length === 0) return prev;
         const merged = [...prev, ...additions];
         const trimmed = merged.length > MAX_BUFFER ? merged.slice(-MAX_BUFFER) : merged;
@@ -221,6 +319,19 @@ export default function ChatPanel({
       socket.emit("chat:typing", { roomId, from: name, typing: false });
       // announce leaving the chat room
       socket.emit("chat:leave", { roomId, name });
+
+      // clear system dedupe buffers on room change/unmount
+      pendingSystemRef.current = [];
+      lastSystemRef.current = null;
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      if (pendingJoinTimerRef.current) {
+        clearTimeout(pendingJoinTimerRef.current);
+        pendingJoinTimerRef.current = null;
+      }
+      pendingJoinRef.current = null;
     };
   }, [socket, roomId]);
 

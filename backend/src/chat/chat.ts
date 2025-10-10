@@ -55,28 +55,19 @@ export async function joinChatRoom(socket: Socket, roomId: string, name: string)
 
   // only announce join once per socket per room
   if (!alreadyInRoom) {
-    // inform the joining socket about existing peers already in the room
-    try {
-      const peers = await socket.nsp.in(room).fetchSockets();
-      for (const peer of peers) {
-        if (peer.id === socket.id) continue; // skip self
-        const peerName = (peer as any).data?.chatNames?.[room] ?? "A user";
-        socket.emit("chat:system", { text: `${peerName} joined the chat`, ts: Date.now() });
-      }
-    } catch {}
-
-    // show the join message to the joining user
-    const joinMsg = { text: `${name} joined the chat`, ts: Date.now() };
-    socket.emit("chat:system", joinMsg);
-
-    // broadcast the join to everyone else in the room
-    const forPeers = { text: `${name} joined the chat`, ts: Date.now() };
+    // broadcast a single generic join notice to everyone else in the room
+    const forPeers = { text: `peer joined the chat`, ts: Date.now() };
     socket.to(room).emit("chat:system", forPeers);
     await fanoutHistoryToRoom(
       socket.nsp,
       roomId,
-      { text: forPeers.text, from: "system", clientId: "system", ts: forPeers.ts!, kind: "system" }
+      { text: forPeers.text, from: "system", clientId: "system", ts: forPeers.ts!, kind: "system" },
+      { excludeId: socket.id }
     );
+
+    // also show the same generic join notice to the joining user (do not push to self history to avoid duplicate via immediate history fetch)
+    const forSelf = { text: `peer joined the chat`, ts: Date.now() };
+    socket.emit("chat:system", forSelf);
   }
 
   // After successful join, send recent history for this room for this socket
@@ -124,8 +115,13 @@ export function wireChat(io: Server, socket: Socket) {
     if (!roomId) return;
     const room = `chat:${roomId}`;
     if (socket.rooms.has(room)) {
+      // show leave to self as well
+      const selfLeave = { text: `peer left the chat`, ts: Date.now() };
+      socket.emit("chat:system", selfLeave);
+      pushHistory(socket, roomId, { text: selfLeave.text, from: "system", clientId: "system", ts: selfLeave.ts!, kind: "system" });
+
       socket.leave(room);
-      const leaveMsg = { text: `${name} left the chat`, ts: Date.now() };
+      const leaveMsg = { text: `peer left the chat`, ts: Date.now() };
       socket.nsp.in(room).emit("chat:system", leaveMsg);
       fanoutHistoryToRoom(socket.nsp, roomId, { text: leaveMsg.text, from: "system", clientId: "system", ts: leaveMsg.ts!, kind: "system" });
     }
@@ -145,11 +141,14 @@ export function wireChat(io: Server, socket: Socket) {
     const data = getData(socket) || {};
     for (const room of socket.rooms) {
       if (typeof room === "string" && room.startsWith("chat:")) {
-        const displayName = data.chatNames?.[room] ?? "A user";
-        const sys = { text: `${displayName} left the chat`, ts: Date.now() };
+        const sys = { text: `peer left the chat`, ts: Date.now() };
         socket.nsp.in(room).emit("chat:system", sys);
         const rid = room.replace(/^chat:/, "");
         fanoutHistoryToRoom(socket.nsp, rid, { text: sys.text, from: "system", clientId: "system", ts: sys.ts!, kind: "system" }, { excludeId: socket.id });
+
+        // also notify self once
+        socket.emit("chat:system", sys);
+        pushHistory(socket, rid, { text: sys.text, from: "system", clientId: "system", ts: sys.ts!, kind: "system" });
       }
     }
   });
