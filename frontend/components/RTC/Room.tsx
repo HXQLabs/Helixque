@@ -8,6 +8,7 @@ import ChatPanel from "./Chat/chat"; // ← adjust path if different
 import VideoGrid from "./VideoGrid";
 import ControlBar from "./ControlBar";
 import TimeoutAlert from "./TimeoutAlert";
+import MobileGestureWrapper from "./MobileGestureWrapper";
 import { useMediaState, usePeerState, useRoomState } from "./hooks";
 import { 
   ensureRemoteStream, 
@@ -749,69 +750,76 @@ export default function Room({
 
   // ===== RENDER =====
   return (
-    <div className="relative flex min-h-screen flex-col bg-neutral-950 text-white">
-      {/* Main Content Area */}
-      <main className="relative flex-1">
-        <div className={`relative mx-auto max-w-[1400px] h-[calc(100vh-80px)] transition-all duration-300 ${
-          showChat ? 'px-2 pr-[500px] sm:pr-[500px] md:pr-[540px] lg:pr-[600px]' : 'px-4'
-        } pt-4`}>
-          
-          <VideoGrid
-            localVideoRef={localVideoRef}
-            remoteVideoRef={remoteVideoRef}
-            localScreenShareRef={localScreenShareRef}
-            remoteScreenShareRef={remoteScreenShareRef}
-            showChat={showChat}
-            lobby={lobby}
-            status={status}
-            name={name}
-            mediaState={mediaState}
-            peerState={peerState}
-          />
-
-          {/* Hidden remote audio */}
-          <audio ref={remoteAudioRef} style={{ display: "none" }} />
-        </div>
-
-        {/* Chat Drawer */}
-        <div
-          className={`fixed top-4 right-0 bottom-20 w-full sm:w-[500px] md:w-[540px] lg:w-[600px] transform border border-white/10 border-r-0 bg-neutral-950 backdrop-blur transition-transform duration-300 rounded-l-2xl ${
-            showChat ? "translate-x-0" : "translate-x-full"
-          }`}
-        >
-          <div className="h-full">
-            <ChatPanel
-              socket={socketRef.current}
-              roomId={roomId}
+    <MobileGestureWrapper
+      onSwipeToNextUser={handleNext}
+      onToggleChat={() => setShowChat((v) => !v)}
+      disabled={lobby || status !== "connected"}
+      className="min-h-screen"
+    >
+      <div className="relative flex min-h-screen flex-col bg-neutral-950 text-white">
+        {/* Main Content Area */}
+        <main className="relative flex-1">
+          <div className={`relative mx-auto max-w-[1400px] h-[calc(100vh-80px)] transition-all duration-300 ${
+            showChat ? 'px-2 pr-[500px] sm:pr-[500px] md:pr-[540px] lg:pr-[600px]' : 'px-4'
+          } pt-4`}>
+            
+            <VideoGrid
+              localVideoRef={localVideoRef}
+              remoteVideoRef={remoteVideoRef}
+              localScreenShareRef={localScreenShareRef}
+              remoteScreenShareRef={remoteScreenShareRef}
+              showChat={showChat}
+              lobby={lobby}
+              status={status}
               name={name}
-              mySocketId={mySocketId}
-              collapsed={false}
-              isOpen={showChat}
+              mediaState={mediaState}
+              peerState={peerState}
             />
+
+            {/* Hidden remote audio */}
+            <audio ref={remoteAudioRef} style={{ display: "none" }} />
           </div>
-        </div>
-      </main>
 
-      <ControlBar
-        mediaState={mediaState}
-        showChat={showChat}
-        onToggleMic={toggleMic}
-        onToggleCam={toggleCam}
-        onToggleScreenShare={toggleScreenShare}
-        onToggleChat={() => setShowChat((v) => !v)}
-        onRecheck={handleRecheck}
-        onNext={handleNext}
-        onLeave={handleLeave}
-        onReport={() => handleReport()}
-      />
+          {/* Chat Drawer */}
+          <div
+            className={`fixed top-4 right-0 bottom-20 w-full sm:w-[500px] md:w-[540px] lg:w-[600px] transform border border-white/10 border-r-0 bg-neutral-950 backdrop-blur transition-transform duration-300 rounded-l-2xl ${
+              showChat ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            <div className="h-full">
+              <ChatPanel
+                socket={socketRef.current}
+                roomId={roomId}
+                name={name}
+                mySocketId={mySocketId}
+                collapsed={false}
+                isOpen={showChat}
+              />
+            </div>
+          </div>
+        </main>
 
-      <TimeoutAlert
-        show={showTimeoutAlert}
-        message={timeoutMessage}
-        onRetry={handleRetryMatchmaking}
-        onCancel={handleCancelTimeout}
-        onKeyDown={handleKeyDown}
-      />
-    </div>
+        <ControlBar
+          mediaState={mediaState}
+          showChat={showChat}
+          onToggleMic={toggleMic}
+          onToggleCam={toggleCam}
+          onToggleScreenShare={toggleScreenShare}
+          onToggleChat={() => setShowChat((v) => !v)}
+          onRecheck={handleRecheck}
+          onNext={handleNext}
+          onLeave={handleLeave}
+          onReport={() => handleReport()}
+        />
+
+        <TimeoutAlert
+          show={showTimeoutAlert}
+          message={timeoutMessage}
+          onRetry={handleRetryMatchmaking}
+          onCancel={handleCancelTimeout}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+    </MobileGestureWrapper>
   );
 }
