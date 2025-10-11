@@ -302,4 +302,28 @@ Thanks to the open-source projects that made Helixque possible:
 
 <br />
 
+## Health Check
+
+This project includes a health check endpoint for monitoring purposes. It's a simple way to verify that the backend server is running and can connect to its critical services (like Redis).
+
+-   **URL**: `https://<host-ip>/health`
+-   **Method**: `GET`
+-   **Success Response (200 OK)**:
+    ```json
+    {
+      "ok": true,
+      "redis": "connected"
+    }
+    ```
+-   **Error Response (503 Service Unavailable)**:
+    ```json
+    {
+      "ok": false,
+      "redis": "disconnected",
+      "error": "connect ECONNREFUSED 127.0.0.1:6379"
+    }
+    ```
+
+This endpoint can be used with uptime monitoring tools like Uptime Kuma.
+
 

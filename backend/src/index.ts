@@ -8,6 +8,7 @@ import { UserManager } from "./managers/UserManger"; // corrected spelling
 // import { createAdapter } from "@socket.io/redis-adapter";
 
 import { wireChat /*, joinChatRoom */ } from "./chat/chat"; // keep wiring util
+import { checkHealth } from "./health";
 
 import type { HandshakeAuth, HandshakeQuery, ChatJoinPayload } from "./type";
 
@@ -31,6 +32,15 @@ app.get("/healthz", async (_req, res) => {
   } catch {
     res.json({ ok: true, online: -1 });
   }
+});
+
+app.get("/health", async (_req, res) => {
+  const health = await checkHealth();
+  if (!health.ok) {
+    res.status(503).json(health);
+    return;
+  }
+  res.json(health);
 });
 
 const HEARTBEAT_MS = Number(process.env.SOCKET_HEARTBEAT_MS || 30_000);
