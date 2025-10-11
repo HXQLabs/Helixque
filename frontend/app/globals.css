@@ -17,7 +17,7 @@
   --accent-foreground: 0 0% 9%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 89.8%;
+  --border: 0 0% 15%;
   --input: 0 0% 89.8%;
   --ring: 0 0% 3.9%;
   --chart-1: 12 76% 61%;
@@ -45,7 +45,7 @@
   --accent-foreground: 0 0% 98%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 14.9%;
+  --border: 0 0% 30%;
   --input: 0 0% 14.9%;
   --ring: 0 0% 83.1%;
   --chart-1: 220 70% 50%;
@@ -60,39 +60,221 @@ body {
   color: hsl(var(--foreground));
 }
 
+/* Enhanced border utilities - Monochrome with smooth pop-out effect */
+.border-soft {
+  border: 1px solid hsl(var(--border) / 0.4);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.05),
+    0 2px 8px hsl(var(--border) / 0.03),
+    inset 0 1px 0 hsl(var(--border) / 0.1);
+}
+
+.border-card {
+  border: 1px solid hsl(var(--border) / 0.45);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.08),
+    0 4px 16px hsl(0 0% 0% / 0.15),
+    0 1px 4px hsl(0 0% 0% / 0.1),
+    inset 0 1px 0 hsl(var(--border) / 0.15);
+}
+
+.border-elevated {
+  border: 1px solid hsl(var(--border) / 0.5);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.1),
+    0 8px 32px hsl(0 0% 0% / 0.2),
+    0 2px 8px hsl(0 0% 0% / 0.15),
+    inset 0 1px 0 hsl(var(--border) / 0.2);
+}
+
+.dark .border-soft {
+  border: 1px solid hsl(var(--border) / 0.4);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.1),
+    0 2px 12px hsl(0 0% 0% / 0.4),
+    inset 0 1px 0 hsl(var(--border) / 0.2);
+}
+
+.dark .border-card {
+  border: 1px solid hsl(var(--border) / 0.55);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.15),
+    0 4px 20px hsl(0 0% 0% / 0.5),
+    0 1px 6px hsl(0 0% 0% / 0.3),
+    inset 0 1px 0 hsl(var(--border) / 0.25);
+}
+
+.dark .border-elevated {
+  border: 1px solid hsl(var(--border) / 0.6);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.2),
+    0 8px 40px hsl(0 0% 0% / 0.6),
+    0 2px 12px hsl(0 0% 0% / 0.4),
+    inset 0 1px 0 hsl(var(--border) / 0.3);
+}
+
+/* Enhanced button styling - Monochrome */
+.control-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.control-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, hsl(var(--border) / 0.2), hsl(var(--border) / 0.05));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  pointer-events: none;
+}
+
+.control-button:hover::before {
+  background: linear-gradient(135deg, hsl(var(--border) / 0.3), hsl(var(--border) / 0.1));
+}
+
+/* Smooth transitions for all interactive elements */
+* {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+/* Enhanced focus states */
+input:focus, button:focus {
+  outline: none;
+  box-shadow: 
+    0 0 0 2px hsl(var(--ring) / 0.3),
+    0 0 0 4px hsl(var(--ring) / 0.1);
+}
+
+/* Better visual hierarchy for cards */
+.border-card:hover {
+  border-color: hsl(var(--border) / 0.6);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.12),
+    0 6px 24px hsl(var(--border) / 0.06),
+    0 2px 6px hsl(var(--border) / 0.08),
+    inset 0 1px 0 hsl(var(--border) / 0.2);
+}
+
+.dark .border-card:hover {
+  border-color: hsl(var(--border) / 0.7);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.2),
+    0 6px 28px hsl(0 0% 0% / 0.6),
+    0 2px 8px hsl(0 0% 0% / 0.4),
+    inset 0 1px 0 hsl(var(--border) / 0.3);
+}
+
+/* Input border to match main component border - increased visibility by 5% */
+.input-border-match {
+  border: 1px solid hsl(var(--border) / 0.45);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.05),
+    0 2px 8px hsl(0 0% 0% / 0.1),
+    inset 0 1px 0 hsl(var(--border) / 0.1);
+}
+
+.dark .input-border-match {
+  border: 1px solid hsl(var(--border) / 0.55);
+  box-shadow: 
+    0 0 0 1px hsl(var(--border) / 0.1),
+    inset 0 1px 0 hsl(var(--border) / 0.2);
+}
+
+/* Divider line to match input border */
+.divider-match {
+  border-top: 1px solid hsl(var(--border) / 0.45);
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.1);
+}
+
+.dark .divider-match {
+  border-top: 1px solid hsl(var(--border) / 0.55);
+}
+
+/* Enhanced button styling for better light/dark mode compatibility */
+.bg-muted {
+  background-color: hsl(var(--muted));
+}
+
+.light .bg-muted {
+  background-color: hsl(0 0% 85%);
+  color: hsl(0 0% 9%);
+}
+
+.dark .bg-muted {
+  background-color: hsl(0 0% 14.9%);
+  color: hsl(0 0% 98%);
+}
+
+.light .bg-muted:hover {
+  background-color: hsl(0 0% 80%);
+}
+
+.dark .bg-muted:hover {
+  background-color: hsl(0 0% 20%);
+}
+
 /* Custom Sonner Toast Styles */
 [data-sonner-toaster] {
   font-family: inherit;
 }
 
 [data-sonner-toast] {
-  background: rgb(38 38 38) !important;
-  border: 1px solid rgb(64 64 64) !important;
-  color: rgb(255 255 255) !important;
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  color: hsl(var(--card-foreground)) !important;
   border-radius: 12px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+.dark [data-sonner-toast] {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
 [data-sonner-toast][data-type="success"] {
   border-color: rgb(34 197 94) !important;
   background: rgb(20 83 45) !important;
+  color: rgb(255 255 255) !important;
+}
+
+.light [data-sonner-toast][data-type="success"] {
+  background: rgb(220 252 231) !important;
+  color: rgb(21 128 61) !important;
+  border-color: rgb(34 197 94) !important;
 }
 
 [data-sonner-toast][data-type="error"] {
   border-color: rgb(239 68 68) !important;
   background: rgb(127 29 29) !important;
+  color: rgb(255 255 255) !important;
+}
+
+.light [data-sonner-toast][data-type="error"] {
+  background: rgb(254 226 226) !important;
+  color: rgb(153 27 27) !important;
+  border-color: rgb(239 68 68) !important;
 }
 
 [data-sonner-toast][data-type="warning"] {
   border-color: rgb(245 158 11) !important;
   background: rgb(146 64 14) !important;
+  color: rgb(255 255 255) !important;
+}
+
+.light [data-sonner-toast][data-type="warning"] {
+  background: rgb(254 243 199) !important;
+  color: rgb(146 64 14) !important;
+  border-color: rgb(245 158 11) !important;
 }
 
 [data-sonner-toast] [data-title] {
-  color: rgb(255 255 255) !important;
+  color: inherit !important;
   font-weight: 600 !important;
 }
 
 [data-sonner-toast] [data-description] {
-  color: rgb(212 212 212) !important;
+  color: inherit !important;
+  opacity: 0.8;
 }
