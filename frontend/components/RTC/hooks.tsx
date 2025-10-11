@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+
 // ===== CUSTOM HOOKS =====
 export function useMediaState(audioOn?: boolean, videoOn?: boolean) {
   const [micOn, setMicOn] = useState<boolean>(typeof audioOn === "boolean" ? audioOn : true);
@@ -26,6 +27,8 @@ export function usePeerState() {
     peerScreenShareOn, setPeerScreenShareOn
   };
 }
+
+export { useReloadConfirmation } from "./hooks/useReloadConfirmation";
 
 export function useRoomState() {
   const [showChat, setShowChat] = useState(false);

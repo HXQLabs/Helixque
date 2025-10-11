@@ -8,6 +8,7 @@ import ChatPanel from "./Chat/chat"; // ← adjust path if different
 import VideoGrid from "./VideoGrid";
 import ControlBar from "./ControlBar";
 import TimeoutAlert from "./TimeoutAlert";
+import { useReloadConfirmation } from "./hooks/useReloadConfirmation";
 import { useMediaState, usePeerState, useRoomState } from "./hooks";
 import { 
   ensureRemoteStream, 
@@ -50,6 +51,10 @@ export default function Room({
     lobby, setLobby, status, setStatus, showTimeoutAlert, setShowTimeoutAlert,
     timeoutMessage, setTimeoutMessage 
   } = roomState;
+
+  // Add reload confirmation when in a call
+  useReloadConfirmation({ isInCall: !lobby });
+
 
   // DOM refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
