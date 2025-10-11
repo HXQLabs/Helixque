@@ -196,7 +196,7 @@ Use Chrome DevTools mobile simulation:
 ### Required Packages
 ```json
 {
-  "react-swipeable": "^7.0.1"
+  "react-swipeable": "^7.0.2"
 }
 ```
 

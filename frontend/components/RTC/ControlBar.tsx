@@ -47,7 +47,7 @@ export default function ControlBar({
     <div className="fixed bottom-0 left-0 right-0 h-20 z-50">
       <div className="relative h-full flex items-center justify-center">
         {/* Mobile gesture hint overlay */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full mb-2 hidden sm:block">
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full mb-2 block sm:hidden">
           <div className="bg-black/60 text-white text-xs px-3 py-1 rounded-full backdrop-blur border border-white/20">
             💡 Tip: Swipe left/right for next • Swipe up/down for chat
           </div>

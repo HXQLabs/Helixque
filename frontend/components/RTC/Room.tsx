@@ -753,7 +753,7 @@ export default function Room({
     <MobileGestureWrapper
       onSwipeToNextUser={handleNext}
       onToggleChat={() => setShowChat((v) => !v)}
-      disabled={lobby || status !== "connected"}
+      disabled={lobby || !roomId}
       className="min-h-screen"
     >
       <div className="relative flex min-h-screen flex-col bg-neutral-950 text-white">

@@ -1,5 +1,5 @@
 import { useSwipeable } from 'react-swipeable';
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 
 interface MobileGestureHandlers {
   onSwipeLeft?: () => void;
@@ -29,16 +29,40 @@ export const useMobileGestures = (
   } = options;
 
   const lastTapRef = useRef<number>(0);
+  const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleDoubleClick = useCallback(() => {
     const now = Date.now();
-    if (now - lastTapRef.current < doubleTapThreshold) {
+    const timeSinceLastTap = now - lastTapRef.current;
+    
+    // Clear any pending single-tap handler
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current);
+      tapTimeoutRef.current = null;
+    }
+    
+    if (timeSinceLastTap < doubleTapThreshold && timeSinceLastTap > 0) {
+      // Second tap within threshold - fire double-tap
       handlers.onDoubleClick?.();
+      lastTapRef.current = 0; // Reset to prevent triple-tap from triggering another double-tap
     } else {
-      handlers.onTap?.();
+      // First tap or tap after threshold - debounce single-tap
+      tapTimeoutRef.current = setTimeout(() => {
+        handlers.onTap?.();
+        tapTimeoutRef.current = null;
+      }, doubleTapThreshold);
     }
     lastTapRef.current = now;
-  }, [handlers.onDoubleClick, handlers.onTap, doubleTapThreshold]);
+  }, [handlers, doubleTapThreshold]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: (eventData) => {

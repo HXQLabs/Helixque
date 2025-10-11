@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ReactNode, useEffect, useState, useCallback, memo } from 'react';
+import React, { ReactNode, useEffect, useState, useCallback, memo, useRef } from 'react';
 import { useMobileGestures } from './useMobileGestures';
 import { useMobileOptimization } from './useMobileOptimization';
 
@@ -21,17 +21,34 @@ const MobileGestureWrapper: React.FC<MobileGestureWrapperProps> = memo(({
 }) => {
   const [feedbackText, setFeedbackText] = useState<string>('');
   const { isMobile, hapticFeedback, getMobileClasses } = useMobileOptimization();
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Show feedback for gestures
   const showFeedback = useCallback((text: string, haptic: 'light' | 'medium' | 'heavy' = 'light') => {
     setFeedbackText(text);
+    
+    // Clear any existing timeout
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+    }
+    
     try {
       hapticFeedback(haptic);
     } catch (error) {
       // Silently fail if haptic feedback is not supported
     }
-    setTimeout(() => setFeedbackText(''), 1500);
+    
+    feedbackTimerRef.current = setTimeout(() => setFeedbackText(''), 1500);
   }, [hapticFeedback]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   // Memoize gesture handlers to prevent unnecessary re-renders
   const handleSwipeLeft = useCallback(() => {
