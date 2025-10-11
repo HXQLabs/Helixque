@@ -706,10 +706,8 @@ export default function Room({
       toast.warning("Partner Left", {
         description: "Your partner has left the call"
       });
-      
       const actualCamState = !!(currentVideoTrackRef.current && currentVideoTrackRef.current.readyState === "live" && camOn);
       const actualMicState = !!(localAudioTrack && localAudioTrack.readyState === "live" && micOn);
-      
       handleNextConnection(actualCamState, actualMicState, "partner-left");
     });
 

@@ -77,18 +77,12 @@ export async function joinChatRoom(socket: Socket, roomId: string, name: string)
 
 export function wireChat(io: Server, socket: Socket) {
   // Allows explicit joins (reconnects/late-joins)
-  socket.on("chat:join", async ({ roomId, name }: { roomId: string; name: string }) => {
-    await joinChatRoom(socket, roomId, name);
+  socket.on("chat:join", async ({ roomId, name }: ChatJoinPayload) => {
+    await joinChatRoom(socket, roomId, name || "A user");
   });
 
   // Broadcast a message to everyone in the chat room
-  socket.on("chat:message", (payload: {
-    roomId: string;
-    text: string;
-    from: string;      // display name
-    clientId: string;  // sender socket.id or app user id
-    ts?: number;
-  }) => {
+  socket.on("chat:message", (payload: ChatMessagePayload) => {
     const { roomId, text, from, clientId, ts } = payload || {};
     const safeText = (text ?? "").toString().trim().slice(0, 1000);
     if (!roomId || !safeText) return;
@@ -105,13 +99,13 @@ export function wireChat(io: Server, socket: Socket) {
   });
 
   // Typing indicator to peers (not echoed to sender)
-  socket.on("chat:typing", ({ roomId, from, typing }: { roomId: string; from: string; typing: boolean }) => {
+  socket.on("chat:typing", ({ roomId, from, typing }: ChatTypingPayload) => {
     if (!roomId) return;
     socket.to(`chat:${roomId}`).emit("chat:typing", { from, typing });
   });
 
   // Explicit leave (e.g., navigating away or switching rooms)
-  socket.on("chat:leave", ({ roomId, name }: { roomId: string; name: string }) => {
+  socket.on("chat:leave", ({ roomId, name }: ChatLeavePayload) => {
     if (!roomId) return;
     const room = `chat:${roomId}`;
     if (socket.rooms.has(room)) {
