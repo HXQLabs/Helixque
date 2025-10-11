@@ -172,7 +172,7 @@ export default function Room({
     }
     setShowTimeoutAlert(false);
     setLobby(false);
-    setStatus("Search paused. Click Try Again to rejoin the queue.");
+    window.location.reload();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
