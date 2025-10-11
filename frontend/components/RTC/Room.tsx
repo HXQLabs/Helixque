@@ -58,9 +58,11 @@ export default function Room({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const localScreenShareRef = useRef<HTMLVideoElement>(null);
   const remoteScreenShareRef = useRef<HTMLVideoElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+  // Connection flag for gesture wrapper
+  const isConnected = Boolean(socketRef.current?.connected);
 
   // socket/pc refs
-  const socketRef = useRef<Socket | null>(null);
   const peerIdRef = useRef<string | null>(null);
   const sendingPcRef = useRef<RTCPeerConnection | null>(null);
   const receivingPcRef = useRef<RTCPeerConnection | null>(null);
@@ -753,7 +755,7 @@ export default function Room({
     <MobileGestureWrapper
       onSwipeToNextUser={handleNext}
       onToggleChat={() => setShowChat((v) => !v)}
-      disabled={lobby || !roomId}
+      disabled={lobby || !isConnected}
       className="min-h-screen"
     >
       <div className="relative flex min-h-screen flex-col bg-neutral-950 text-white">
