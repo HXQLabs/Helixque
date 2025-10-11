@@ -168,14 +168,7 @@ io.on("connection", (socket: Socket) => {
 
     // presenceDown(socket.id).catch((e) => console.warn("[presenceDown]", e?.message));
 
-    const u = userManager.getUser(socket.id);
-    if (u?.roomId) {
-      // announce left to the same namespaced room
-      socket.nsp.in(u.roomId).emit("chat:system", {
-        text: `${u.name} left the chat`,
-        ts: Date.now(),
-      });
-    }
+  // Chat leave is announced within chat wiring via "disconnecting" handler
 
     userManager.removeUser(socket.id);
   });
