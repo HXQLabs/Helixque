@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import Footer from "@/components/ui/Footer";
 
 
 const geistSans = Geist({
@@ -48,6 +49,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {children}
+        <Footer />
         <Toaster />
       </body>
     </html>
