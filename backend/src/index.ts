@@ -8,6 +8,7 @@ import { UserManager } from "./managers/UserManger"; // corrected spelling
 // import { createAdapter } from "@socket.io/redis-adapter";
 
 import { wireChat /*, joinChatRoom */ } from "./chat/chat"; // keep wiring util
+import { verifyBrevoConnection } from "./mailer"; // Brevo mailer utilities
 
 import type { HandshakeAuth, HandshakeQuery, ChatJoinPayload } from "./type";
 
@@ -27,9 +28,21 @@ app.get("/healthz", async (_req, res) => {
   try {
     // const online = await countOnline().catch(() => -1);
     // res.json({ ok: true, online });
-    res.json({ ok: true, online: -1 }); // fallback without Redis
+    
+    // Check Brevo connection if API key is provided
+    let brevoStatus = 'not_configured';
+    if (process.env.BREVO_API_KEY) {
+      const isConnected = await verifyBrevoConnection();
+      brevoStatus = isConnected ? 'connected' : 'error';
+    }
+    
+    res.json({ 
+      ok: true, 
+      online: -1, // fallback without Redis
+      brevo: brevoStatus
+    });
   } catch {
-    res.json({ ok: true, online: -1 });
+    res.json({ ok: true, online: -1, brevo: 'error' });
   }
 });
 

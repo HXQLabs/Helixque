@@ -144,9 +144,56 @@ NODE_ENV=production
 CORS_ORIGINS=http://localhost:3000
 # Optional: REDIS_URL=redis://localhost:6379
 # Optional: STUN/TURN server configuration
+
+# Brevo Email Configuration
+BREVO_API_KEY=your_brevo_api_key_here
+BREVO_FROM_EMAIL=noreply@helixque.com
+BREVO_FROM_NAME=Helixque
+FRONTEND_URL=http://localhost:3000
 ```
 
 > **Note:** Use a TURN server in production to ensure media relay when direct P2P is not possible. For multiple backend instances, configure Socket.IO Redis adapter.
+
+### Email Service (Brevo)
+
+Helixque includes a comprehensive email service powered by Brevo for sending transactional emails like welcome messages, password resets, and notifications.
+
+**Setup:**
+
+1. **Get a Brevo API Key:**
+   - Sign up at [Brevo](https://www.brevo.com/)
+   - Go to Settings → API Keys
+   - Create a new API key with "Send emails" permissions
+
+2. **Configure Environment Variables:**
+   ```env
+   BREVO_API_KEY=your_brevo_api_key_here
+   BREVO_FROM_EMAIL=noreply@helixque.com
+   BREVO_FROM_NAME=Helixque
+   FRONTEND_URL=http://localhost:3000
+   ```
+
+3. **Usage Examples:**
+   ```typescript
+   import { sendWelcomeEmail, sendPasswordResetEmail, sendNotificationEmail } from './src/mailer';
+   
+   // Send welcome email
+   await sendWelcomeEmail('user@example.com', 'John Doe');
+   
+   // Send password reset
+   await sendPasswordResetEmail('user@example.com', 'reset-token-123', 'John Doe');
+   
+   // Send custom notification
+   await sendNotificationEmail('user@example.com', 'New Message', 'You have a new message!', 'John Doe');
+   ```
+
+**Available Functions:**
+- `sendEmail()` - Generic email sender with full customization
+- `sendWelcomeEmail()` - Welcome email for new users
+- `sendPasswordResetEmail()` - Password reset with secure token
+- `sendNotificationEmail()` - Custom notification emails
+- `sendTemplateEmail()` - Use Brevo templates
+- `verifyBrevoConnection()` - Test API connection
 
 ## ⚙️ Built With
 
@@ -164,6 +211,7 @@ Helixque/
 ├─ backend/              # Signaling server (Node.js + TypeScript)
 │  ├─ src/
 │  │  ├─ managers/       # UserManager, RoomManager
+│  │  ├─ mailer/         # Brevo email utilities
 │  │  └─ index.ts        # Entry point
 │  ├─ .env.example
 │  └─ package.json
