@@ -11,8 +11,8 @@ import { wireChat /*, joinChatRoom */ } from "./chat/chat"; // keep wiring util
 
 import type { HandshakeAuth, HandshakeQuery, ChatJoinPayload } from "./type";
 
-import { Server } from 'socket.io';
-import { setupMessageHandler } from './messageHandler';
+
+import { setupMessageHandler } from "./controllers/messageController";
 
 const app = express();
 const server = http.createServer(app);
@@ -62,6 +62,8 @@ io.on("connection", (socket: Socket) => {
 
   // Hook up chat listeners (chat:join, chat:message, chat:typing)
   wireChat(io, socket);
+  // Hook up message handler for link preview messages
+  setupMessageHandler(io, socket);
 
   // Auto-join a chat room if the client provided it (supports auth or query)
   // Normalize to using `chat:<roomId>` as the room namespace everywhere
@@ -217,13 +219,6 @@ const shutdown = (signal: string) => {
   });
 };
 
-const io = new Server(httpServer, { /* options */ });
-
-io.on('connection', (socket) => {
-  console.log('User connected', socket.id);
-
-  setupMessageHandler(io, socket);
-});
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
