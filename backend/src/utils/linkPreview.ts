@@ -55,72 +55,100 @@ const blockedRanges = [
   '224.0.0.0/4', // multicast
 ];
 
-// --- Fetch HTML safely ---
 async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, maxRedirects = 5): Promise<string | null> {
   try {
-    const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) return null;
+    const dnsMod = await import('dns');
+    const dns = dnsMod.promises;
 
-    // Resolve hostname
-    const addresses = await import('dns').then(dns => dns.promises.lookup(parsedUrl.hostname, { all: true }));
-    if (!addresses || addresses.length === 0) return null;
+    const isBlockedIPv6 = (ip: string) => {
+      const lower = ip.toLowerCase();
+      if (lower === '::1') return true;                  // loopback
+      if (/^fc|^fd/.test(lower)) return true;            // fc00::/7 unique local
+      if (/^fe[89ab]/.test(lower)) return true;          // fe80::/10 link-local
+      return false;
+    };
 
-    for (const addr of addresses) {
-      const ip = addr.address;
+    const checkSSRF = async (rawUrl: string) => {
+      const u = new URL(rawUrl);
+      if (!['http:', 'https:'].includes(u.protocol)) return false;
+      const addrs = await dns.lookup(u.hostname, { all: true });
+      if (!addrs?.length) return false;
+      for (const { address } of addrs) {
+        if (address.includes(':')) {
+          if (isBlockedIPv6(address)) return false;
+          continue;
+        }
+        if (blockedRanges.some(range => ipInRange(address, range))) return false;
+      }
+      return true;
+    };
 
-      // IPv4 blocking
-      if (blockedRanges.some(range => ipInRange(ip, range))) {
-        console.warn('Blocked IPv4 address:', ip);
+    let current = url;
+    for (let i = 0; i <= maxRedirects; i++) {      
+      if (!(await checkSSRF(current))) return null;
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      const res = await fetch(current, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Helixque-Link-Preview/1.0' },
+      }).finally(() => clearTimeout(id));
+
+      // Redirect handling (manual to re-check SSRF per hop)
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get('location');
+        if (!loc) return null;
+        current = new URL(loc, current).toString();
+        continue;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('html')) return null;
+
+      const contentLength = res.headers.get('content-length');
+      if (contentLength && Number(contentLength) > maxSize) return null;
+
+      // Read body with size cap (supports Web Streams and Node Readable)
+      let bytes: Uint8Array | null = null;
+      const body: any = (res as any).body;
+      if (body?.getReader) {
+        const reader = body.getReader();
+        let received = 0;
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          received += value.byteLength;
+          if (received > maxSize) {
+            try { await reader.cancel(); } catch {}
+            return null;
+          }
+          chunks.push(value);
+        }
+        bytes = new Uint8Array(received);
+        let off = 0;
+        for (const c of chunks) { bytes.set(c, off); off += c.byteLength; }
+      } else if (body && typeof body[Symbol.asyncIterator] === 'function') {
+        const chunks: Buffer[] = [];
+        let received = 0;
+        for await (const chunk of body) {
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          received += buf.length;
+          if (received > maxSize) {
+            body.destroy?.();
+            return null;
+          }
+          chunks.push(buf);
+        }
+        const buf = Buffer.concat(chunks);
+        bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+      } else {
         return null;
       }
 
-      // IPv6 basic checks
-      if (ip.startsWith('fe80') || ip === '::1' || ip.startsWith('fd00:')) {
-        console.warn('Blocked IPv6 address:', ip);
-        return null;
-      }
+      return new TextDecoder('utf-8').decode(bytes);
     }
-
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-
-    let res = await fetch(url, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Helixque-Link-Preview/1.0' },
-    });
-
-    clearTimeout(id);
-
-    let redirectCount = 0;
-    while (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-      if (++redirectCount > maxRedirects) return null;
-      const loc = res.headers.get('location')!;
-      res = await fetch(loc, { redirect: 'follow', signal: controller.signal, headers: { 'User-Agent': 'Helixque-Link-Preview/1.0' } });
-    }
-
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('html')) return null;
-
-    // Limit response size
-    const reader = res.body?.getReader();
-    if (!reader) return null;
-
-    let received = 0;
-    let chunks: Uint8Array[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.length;
-      if (received > maxSize) {
-        reader.cancel();
-        return null;
-      }
-      chunks.push(value);
-    }
-
-    const decoder = new TextDecoder('utf-8');
-    return decoder.decode(Uint8Array.from(chunks.flat()));
+    return null;
   } catch {
     return null;
   }

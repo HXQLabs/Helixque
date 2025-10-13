@@ -55,14 +55,20 @@ export function setupMessageController(io: Server, socket: TypedSocket) {
       createdAt: Date.now(),
     };
 
-    try {
-      const preview = await extractLinkPreviewFromText(text);
-      if (preview) message.linkPreview = preview;
-    } catch (err) {
-      console.error('Link preview extraction failed:', err);
-    }
-
     messagesStore.push(message);
     io.to(roomId).emit('message:new', message);
+
+    // Enrich asynchronously and notify clients
+    (async () => {
+      try {
+        const preview = await extractLinkPreviewFromText(text);
+        if (preview) {
+          message.linkPreview = preview;
+          io.to(roomId).emit('message:update', { id: message.id, linkPreview: preview });
+        }
+      } catch (err) {
+        console.error('Link preview extraction failed:', err);
+     }
+   })();
   });
 }
