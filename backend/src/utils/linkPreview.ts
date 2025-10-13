@@ -111,8 +111,8 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
         continue;
       }
 
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('html')) return null;
+       const contentType = (res.headers.get('content-type') || '').toLowerCase();
+       if (!contentType.includes('html')) return null;
 
       const contentLength = res.headers.get('content-length');
       if (contentLength && Number(contentLength) > maxSize) return null;
