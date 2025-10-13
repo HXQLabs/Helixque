@@ -74,13 +74,26 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
       const addrs = await dns.lookup(u.hostname, { all: true });
       if (!addrs?.length) return false;
       
-       for (const { address } of addrs) {
+      for (const { address } of addrs) {
         if (address.includes(':')) {
-          // Handle IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
-          const mapped = address.match(/^(?:0*:)*ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-          if (mapped) {
-            if (blockedRanges.some(range => ipInRange(mapped[1], range))) return false;
+          // IPv4-mapped IPv6 (dotted or hex forms)
+          const dotV4 = address.match(/(\d+\.\d+\.\d+\.\d+)$/);
+          if (dotV4) {
+            if (blockedRanges.some(range => ipInRange(dotV4[1], range))) return false;
             continue;
+          }
+          if (/^::ffff:/i.test(address)) {
+            // Convert hex-mapped IPv4 (e.g., ::ffff:7f00:1) to dotted form
+            const parts = address.replace(/^::ffff:/i, '').split(':');
+            if (parts.length === 2) {
+              const a = parseInt(parts[0], 16);
+              const b = parseInt(parts[1], 16);
+              if (Number.isFinite(a) && Number.isFinite(b)) {
+                const v4 = [(a >> 8) & 0xff, a & 0xff, (b >> 8) & 0xff, b & 0xff].join('.');
+                if (blockedRanges.some(range => ipInRange(v4, range))) return false;
+                continue;
+              }
+            }
           }
           // Regular IPv6 checks
           if (isBlockedIPv6(address)) return false;
@@ -88,7 +101,7 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
         }
         // IPv4 checks
         if (blockedRanges.some(range => ipInRange(address, range))) return false;
-      }     
+      }
       return true;
     };
 
