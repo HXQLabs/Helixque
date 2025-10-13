@@ -73,7 +73,7 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
       if (!['http:', 'https:'].includes(u.protocol)) return false;
       const addrs = await dns.lookup(u.hostname, { all: true });
       if (!addrs?.length) return false;
-      for (const { address } of addrs) {
+      
        for (const { address } of addrs) {
         if (address.includes(':')) {
           // Handle IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
