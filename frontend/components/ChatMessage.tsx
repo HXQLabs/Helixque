@@ -3,7 +3,6 @@ import LinkifyIt from 'linkify-it';
 
 const linkify = new LinkifyIt();
 
-// Define types
 export interface LinkPreview {
   url: string;
   title?: string;
@@ -25,29 +24,6 @@ interface ChatMessageProps {
 export default function ChatMessage({ message }: ChatMessageProps) {
   const { text, linkPreview } = message;
 
-  const renderTextWithLinks = (s: string) => {
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    const matches = linkify.match(s) || [];
-    if (matches.length === 0) return <span>{s}</span>;
-
-    matches.forEach((m, idx) => {
-      const start = m.index;
-      const end = m.lastIndex;
-      if (start > lastIndex) parts.push(<span key={`t-${idx}`}>{s.slice(lastIndex, start)}</span>);
-      parts.push(
-        <a key={`a-${idx}`} href={m.url} target="_blank" rel="noopener noreferrer" className="underline">
-          {m.raw}
-        </a>
-      );
-      lastIndex = end;
-    });
-
-    if (lastIndex < s.length) parts.push(<span key="tail">{s.slice(lastIndex)}</span>);
-    return <>{parts}</>;
-  };
-
-  // Safe URL validation
   const isValidHttpUrl = (str?: string) => {
     if (!str) return false;
     try {
@@ -64,6 +40,33 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     } catch {
       return null;
     }
+  };
+
+  // --- Render text with safe, clickable links, including back-to-back URLs
+  const renderTextWithLinks = (s: string) => {
+    // Preprocess: separate adjacent URLs by inserting a space before a protocol
+    const preprocessed = s.replace(/(https?:\/\/)(?=\S*https?:\/\/)/g, ' $1');
+
+    const matches = linkify.match(preprocessed) || [];
+    if (matches.length === 0) return <span>{s}</span>;
+
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+
+    matches.forEach((m, idx) => {
+      const start = m.index!;
+      const end = m.lastIndex!;
+      if (start > lastIndex) parts.push(<span key={`t-${idx}`}>{preprocessed.slice(lastIndex, start)}</span>);
+      parts.push(
+        <a key={`a-${idx}`} href={m.url} target="_blank" rel="noopener noreferrer" className="underline">
+          {m.raw}
+        </a>
+      );
+      lastIndex = end;
+    });
+
+    if (lastIndex < preprocessed.length) parts.push(<span key="tail">{preprocessed.slice(lastIndex)}</span>);
+    return <>{parts}</>;
   };
 
   return (

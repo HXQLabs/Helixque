@@ -1,9 +1,7 @@
 import LinkifyIt from 'linkify-it';
-import fetch, { RequestInit } from 'node-fetch';
+import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import LRU from 'lru-cache';
-import dns from 'dns';
-import { URL } from 'url';
 
 const linkify = new LinkifyIt();
 
@@ -14,97 +12,121 @@ export type LinkPreview = {
   image?: string;
 };
 
-const cache = new LRU<string, LinkPreview>({ max: 500, ttl: 1000 * 60 * 60 * 24 }); // 24h TTL
+const cache = new LRU<string, LinkPreview>({ max: 500, ttl: 1000 * 60 * 60 * 24 }); // 24h
 
-// Security constants
-const MAX_REDIRECTS = 5;
-const MAX_RESPONSE_SIZE = 1024 * 1024; // 1MB
-const PRIVATE_RANGES = [
+// --- IP Utilities (safe) ---
+function ipToInt(ip: string): number | null {
+  const octets = ip.split('.');
+  if (octets.length !== 4) return null;
+  let ipInt = 0;
+  for (const octet of octets) {
+    const n = Number(octet);
+    if (!Number.isInteger(n) || n < 0 || n > 255) return null;
+    ipInt = (ipInt << 8) + n;
+  }
+  return ipInt >>> 0;
+}
+
+function ipInRange(ip: string, range: string): boolean {
+  const ipInt = ipToInt(ip);
+  if (ipInt === null) return false;
+
+  const [rangeAddress, prefixStr] = range.split('/');
+  if (!prefixStr) return false;
+
+  const prefix = Number(prefixStr);
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) return false;
+
+  const rangeInt = ipToInt(rangeAddress);
+  if (rangeInt === null) return false;
+
+  const mask = ~(2 ** (32 - prefix) - 1) >>> 0;
+  return (ipInt & mask) === (rangeInt & mask);
+}
+
+// Private/internal IPv4 ranges
+const blockedRanges = [
   '127.0.0.0/8',
   '10.0.0.0/8',
   '172.16.0.0/12',
   '192.168.0.0/16',
-  '169.254.0.0/16',
+  '169.254.0.0/16', // link-local
+  '0.0.0.0/8',
+  '224.0.0.0/4', // multicast
 ];
 
-function ipToInt(ip: string) {
-  return ip.split('.').reduce((acc, octet) => (acc << 8) + Number(octet), 0);
-}
-
-function ipInRange(ip: string, range: string) {
-  const [rangeAddress, prefix] = range.split('/');
-  const mask = ~(2 ** (32 - Number(prefix)) - 1);
-  const ipInt = ipToInt(ip);
-  const rangeInt = ipToInt(rangeAddress);
-  return (ipInt & mask) === (rangeInt & mask);
-}
-
-async function resolveHost(hostname: string): Promise<string[]> {
-  return new Promise<string[]>((resolve, reject) => {
-    dns.lookup(hostname, { all: true }, (err, addresses) => {
-      if (err) return reject(err);
-      resolve(addresses.map(a => a.address));
-    });
-  });
-}
-
-async function fetchHTML(urlString: string, timeout = 7000): Promise<string | null> {
+// --- Fetch HTML safely ---
+async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, maxRedirects = 5): Promise<string | null> {
   try {
-    // Validate URL
-    const url = new URL(urlString);
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    const parsedUrl = new URL(url);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) return null;
 
-    // Resolve host and check private IPs
-    const addresses = await resolveHost(url.hostname);
-    if (addresses.length === 0) return null;
+    // Resolve hostname
+    const addresses = await import('dns').then(dns => dns.promises.lookup(parsedUrl.hostname, { all: true }));
+    if (!addresses || addresses.length === 0) return null;
 
-    for (const ip of addresses) {
-      if (PRIVATE_RANGES.some(range => ipInRange(ip, range))) return null;
-      if (ip === '169.254.169.254') return null; // cloud metadata
+    for (const addr of addresses) {
+      const ip = addr.address;
+
+      // IPv4 blocking
+      if (blockedRanges.some(range => ipInRange(ip, range))) {
+        console.warn('Blocked IPv4 address:', ip);
+        return null;
+      }
+
+      // IPv6 basic checks
+      if (ip.startsWith('fe80') || ip === '::1' || ip.startsWith('fd00:')) {
+        console.warn('Blocked IPv6 address:', ip);
+        return null;
+      }
     }
 
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
 
-    const response = await fetch(url.toString(), {
+    let res = await fetch(url, {
       redirect: 'follow',
-      follow: MAX_REDIRECTS,
       signal: controller.signal,
       headers: { 'User-Agent': 'Helixque-Link-Preview/1.0' },
-    } as RequestInit);
+    });
 
-    // Check content type
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('text/html')) {
-      clearTimeout(id);
-      return null;
+    clearTimeout(id);
+
+    let redirectCount = 0;
+    while (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      if (++redirectCount > maxRedirects) return null;
+      const loc = res.headers.get('location')!;
+      res = await fetch(loc, { redirect: 'follow', signal: controller.signal, headers: { 'User-Agent': 'Helixque-Link-Preview/1.0' } });
     }
 
-    // Stream response with size limit
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('html')) return null;
 
+    // Limit response size
+    const reader = res.body?.getReader();
+    if (!reader) return null;
+
+    let received = 0;
+    let chunks: Uint8Array[] = [];
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      size += value.length;
-      if (size > MAX_RESPONSE_SIZE) {
+      received += value.length;
+      if (received > maxSize) {
         reader.cancel();
-        clearTimeout(id);
         return null;
       }
       chunks.push(value);
     }
 
-    clearTimeout(id);
-    return Buffer.concat(chunks).toString('utf-8');
-  } catch (err) {
-    console.error('fetchHTML error:', err);
+    const decoder = new TextDecoder('utf-8');
+    return decoder.decode(Uint8Array.from(chunks.flat()));
+  } catch {
     return null;
   }
 }
 
+// --- Helpers ---
 function absoluteUrl(base: string, maybe?: string) {
   if (!maybe) return undefined;
   try {
@@ -114,6 +136,7 @@ function absoluteUrl(base: string, maybe?: string) {
   }
 }
 
+// --- Main Exported Function ---
 export async function extractLinkPreviewFromText(text: string): Promise<LinkPreview | null> {
   const matches = linkify.match(text);
   if (!matches || matches.length === 0) return null;
