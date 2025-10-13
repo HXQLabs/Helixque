@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 import { MediaState } from "./VideoGrid";
 import Tooltip from "../ui/tooltip";
+import { ThemeToggle } from "../theme-toggle";
 
 interface ControlBarProps {
   mediaState: MediaState;
@@ -47,7 +48,7 @@ export default function ControlBar({
     <div className="fixed bottom-0 left-0 right-0 h-20 z-50">
       <div className="relative h-full flex items-center justify-center">
         {/* Bottom controls */}
-        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1.5 backdrop-blur">
+        <div className="flex items-center gap-2 rounded-full border-soft bg-background/80 px-2 py-1.5 backdrop-blur">
           <Tooltip content="Recheck">
             <button
               onClick={onRecheck}
@@ -112,7 +113,11 @@ export default function ControlBar({
 
         {/* Right side controls */}
         <div className="absolute right-6">
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1.5 backdrop-blur">
+          <div className="flex items-center gap-2 rounded-full border-soft bg-background/80 px-2 py-1.5 backdrop-blur">
+            <Tooltip content="Toggle theme">
+              <ThemeToggle />
+            </Tooltip>
+            
             <Tooltip content={showChat ? "Close chat" : "Open chat"}>
               <button
                 onClick={onToggleChat}

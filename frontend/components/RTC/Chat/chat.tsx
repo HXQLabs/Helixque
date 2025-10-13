@@ -210,7 +210,7 @@ export default function ChatPanel({
   if (collapsed) return null;
 
   return (
-    <div className="flex flex-col h-full bg-neutral-950 rounded-l-2xl overflow-hidden">
+    <div className="flex flex-col h-full bg-background rounded-l-2xl overflow-hidden">
       <div ref={scrollerRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
         {messages.map((m, idx) => {
           const myId = mySocketId || sidRef.current;
@@ -221,9 +221,9 @@ export default function ChatPanel({
               <div
                 className={
                   isSystem
-                    ? "text-xs text-white/50 italic"
+                    ? "text-xs text-muted-foreground/50 italic"
                     : `max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
-                        mine ? "bg-indigo-600 text-white" : "bg-white/10 text-white/90"
+                        mine ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                       }`
                 }
                 title={new Date(m.ts).toLocaleTimeString()}
@@ -232,7 +232,7 @@ export default function ChatPanel({
                   <span>{m.text}</span>
                 ) : (
                   <>
-                    {!mine && <div className="text-[10px] text-white/60 mb-1">Peer</div>}
+                    {!mine && <div className="text-[10px] text-muted-foreground/60 mb-1">Peer</div>}
                     <div>{m.text}</div>
                   </>
                 )}
@@ -240,13 +240,13 @@ export default function ChatPanel({
             </div>
           );
         })}
-        {peerTyping && <div className="text-xs text-white/60 italic">{peerTyping}</div>}
+        {peerTyping && <div className="text-xs text-muted-foreground/60 italic">{peerTyping}</div>}
       </div>
 
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 divider-match">
         <div className="flex items-center gap-2">
           <input
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/60"
+            className="flex-1 bg-background input-border-match rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/60"
             placeholder={canSend ? "Type a message…" : "Connecting chat…"}
             value={input}
             onChange={(e) => handleTyping(e.target.value)}

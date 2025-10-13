@@ -1,11 +1,15 @@
 "use client";
 import { toast } from "sonner";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function TestToastsPage() {
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center px-6 py-8">
+    <div className="min-h-screen bg-background flex items-center justify-center px-6 py-8 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md mx-auto space-y-4">
-        <h1 className="text-2xl font-bold text-white text-center mb-8">Toast Test Page</h1>
+        <h1 className="text-2xl font-bold text-foreground text-center mb-8">Toast Test Page</h1>
         
         <button
           onClick={() => toast.success("Success!", { description: "This is a success message" })}

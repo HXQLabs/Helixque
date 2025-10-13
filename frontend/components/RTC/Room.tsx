@@ -749,7 +749,7 @@ export default function Room({
 
   // ===== RENDER =====
   return (
-    <div className="relative flex min-h-screen flex-col bg-neutral-950 text-white">
+    <div className="relative flex min-h-screen flex-col bg-background text-foreground">
       {/* Main Content Area */}
       <main className="relative flex-1">
         <div className={`relative mx-auto max-w-[1400px] h-[calc(100vh-80px)] transition-all duration-300 ${
@@ -775,7 +775,7 @@ export default function Room({
 
         {/* Chat Drawer */}
         <div
-          className={`fixed top-4 right-0 bottom-20 w-full sm:w-[500px] md:w-[540px] lg:w-[600px] transform border border-white/10 border-r-0 bg-neutral-950 backdrop-blur transition-transform duration-300 rounded-l-2xl ${
+          className={`fixed top-4 right-0 bottom-20 w-full sm:w-[500px] md:w-[540px] lg:w-[600px] transform border border-border border-r-0 bg-background backdrop-blur transition-transform duration-300 rounded-l-2xl ${
             showChat ? "translate-x-0" : "translate-x-full"
           }`}
         >
