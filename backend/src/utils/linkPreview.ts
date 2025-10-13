@@ -74,12 +74,21 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
       const addrs = await dns.lookup(u.hostname, { all: true });
       if (!addrs?.length) return false;
       for (const { address } of addrs) {
+       for (const { address } of addrs) {
         if (address.includes(':')) {
+          // Handle IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+          const mapped = address.match(/^(?:0*:)*ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+          if (mapped) {
+            if (blockedRanges.some(range => ipInRange(mapped[1], range))) return false;
+            continue;
+          }
+          // Regular IPv6 checks
           if (isBlockedIPv6(address)) return false;
           continue;
         }
+        // IPv4 checks
         if (blockedRanges.some(range => ipInRange(address, range))) return false;
-      }
+      }     
       return true;
     };
 
