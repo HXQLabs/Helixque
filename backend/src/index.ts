@@ -11,6 +11,9 @@ import { wireChat /*, joinChatRoom */ } from "./chat/chat"; // keep wiring util
 
 import type { HandshakeAuth, HandshakeQuery, ChatJoinPayload } from "./type";
 
+import { Server } from 'socket.io';
+import { setupMessageHandler } from './messageHandler';
+
 const app = express();
 const server = http.createServer(app);
 
@@ -213,6 +216,14 @@ const shutdown = (signal: string) => {
     process.exit(0);
   });
 };
+
+const io = new Server(httpServer, { /* options */ });
+
+io.on('connection', (socket) => {
+  console.log('User connected', socket.id);
+
+  setupMessageHandler(io, socket);
+});
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
