@@ -8,6 +8,7 @@ export interface User {
     language?: string;
     industry?: string;
     skillBucket?: string;
+    experienceLevel?: 'beginner' | 'intermediate' | 'expert';
     ip?: string | null;
     ua?: string | null;
     [key: string]: unknown;

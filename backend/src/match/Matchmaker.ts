@@ -14,7 +14,8 @@ export class Matchmaker {
     const language = meta.language || 'any';
     const industry = meta.industry || 'any';
     const skillBucket = meta.skillBucket || 'any';
-    return `Q:${language}:${industry}:${skillBucket}`;
+    const experienceLevel = meta.experienceLevel || 'any';
+    return `Q:${language}:${industry}:${skillBucket}:${experienceLevel}`;
   }
   private langKey(lang: string) { return `QL:${lang}`; }
   private indKey(ind: string) { return `QI:${ind}`; }
@@ -77,8 +78,14 @@ export class Matchmaker {
   // Enqueue user; attempt fast match with bounded fallbacks
   async enqueue(meta: UserMeta): Promise<string | null> {
     const primary = this.shardKey(meta);
+    
+    // Create experience level specific queues
+    const expLevelKey = (level: string) => `QE:${level}`;
+    const expLevel = meta.experienceLevel || 'any';
+    
     const fallbacks: string[] = [
       primary,
+      expLevelKey(expLevel), // Try matching with same experience level first
       ...(meta.language ? [this.langKey(meta.language)] : []),
       ...(meta.industry ? [this.indKey(meta.industry)] : []),
       this.globalKey(),
