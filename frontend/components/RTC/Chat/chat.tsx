@@ -157,7 +157,7 @@ export default function ChatPanel({
             const who = (match[1] || "").trim();
             const action = match[2];
             const isSelf = who.length > 0 && who.toLowerCase() === (name || "").toLowerCase();
-            return `${isSelf ? name : "peer"} ${action} the chat`;
+            return `${isSelf ? name : "Peer"} ${action} the chat`;
           }
         } catch {}
         return txt;
@@ -275,35 +275,18 @@ export default function ChatPanel({
       }
     };
 
-    const onHistory = (payload: { roomId: string; messages: ChatMessage[] }) => {
-      if (!payload || payload.roomId !== roomId) return;
-      const normalized = (payload.messages || []).slice(-MAX_BUFFER);
-      // Merge server history into existing messages with simple de-dupe
-      setMessages((prev) => {
-        const existingKeys = new Set(prev.map((x) => `${x.kind}|${x.ts}|${x.clientId}|${x.text}`));
-        const additions = normalized.filter((x) => {
-          // normalize system messages before checking duplicates
-          const key = `${(x.kind || 'user')}|${x.ts}|${x.clientId}|${x.text}`;
-          return !existingKeys.has(key);
-        });
-        if (additions.length === 0) return prev;
-        const merged = [...prev, ...additions];
-        const trimmed = merged.length > MAX_BUFFER ? merged.slice(-MAX_BUFFER) : merged;
-        savePersisted(trimmed);
-        return trimmed;
-      });
-    };
 
- //   const onPartnerLeft = ({ reason }: { reason: string }) => {
-  //    onSystem({ text: `Your partner left (${reason}).` });
-  //  };
+    // Handler for when partner leaves the chat
+    // const onPartnerLeft = ({ reason }: { reason: string }) => {
+    //   console.log("👋 PARTNER LEFT - Chat event received with reason:", reason);
+    //   onSystem({ text: `Your partner left (${reason}).` });
+    // };
 
     socket.on("connect", onConnect);
     socket.on("chat:message", onMsg);
     socket.on("chat:system", onSystem);
     socket.on("chat:typing", onTyping);
-    socket.on("chat:history", onHistory);
- //   socket.on("partner:left", onPartnerLeft);
+    // socket.on("partner:left", onPartnerLeft);
 
     // now that listeners are wired, perform initial join
     join(); // initial
@@ -313,8 +296,7 @@ export default function ChatPanel({
       socket.off("chat:message", onMsg);
       socket.off("chat:system", onSystem);
       socket.off("chat:typing", onTyping);
-      socket.off("chat:history", onHistory);
- //     socket.off("partner:left", onPartnerLeft);
+      // socket.off("partner:left", onPartnerLeft);
       // stop typing when leaving room/unmounting
       socket.emit("chat:typing", { roomId, from: name, typing: false });
       // announce leaving the chat room

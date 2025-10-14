@@ -84,7 +84,7 @@ export function wireChat(io: Server, socket: Socket) {
   // Broadcast a message to everyone in the chat room
   socket.on("chat:message", (payload: ChatMessagePayload) => {
     const { roomId, text, from, clientId, ts } = payload || {};
-    const safeText = (text ?? "").toString().trim().slice(0, 1000);
+    const safeText = (text || "").toString().trim().slice(0, 1000); // Changed from ?? to || for better compatibility
     if (!roomId || !safeText) return;
     const final = {
       text: safeText,

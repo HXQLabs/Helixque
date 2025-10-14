@@ -8,6 +8,6 @@ export const subClient = pubClient.duplicate();
 
 // Helpful logs (won’t crash app)
 for (const [name, c] of [["app", appRedis], ["pub", pubClient], ["sub", subClient]] as const) {
-  c.on("connect", () => console.log(`[redis:${name}] connected`));
-  c.on("error", (e) => console.warn(`[redis:${name}] error`, e.message));
+//  c.on("connect", () => console.log(`[redis:${name}] connected`));
+//  c.on("error", (e) => console.warn(`[redis:${name}] error`, e.message));
 }
