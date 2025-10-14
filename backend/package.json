@@ -11,7 +11,7 @@
   "dependencies": {
     "@clerk/express": "^1.7.22",
     "@socket.io/redis-adapter": "^8.3.0",
-    "cheerio": "^1.0.0-rc.12",
+    "cheerio": "^1.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^4.21.2",

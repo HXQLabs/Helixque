@@ -1,16 +1,8 @@
-// @ts-ignore
 import LinkifyIt from 'linkify-it';
-// @ts-ignore
 import fetch from 'node-fetch';
-// @ts-ignore
 import * as cheerio from 'cheerio';
 
-declare const Buffer: any;
-declare const URL: any;
-declare const AbortController: any;
-declare const setTimeout: any;
-declare const clearTimeout: any;
-declare const TextDecoder: any;
+
 const linkify = new LinkifyIt();
 
 export type LinkPreview = {
@@ -19,41 +11,11 @@ export type LinkPreview = {
   description?: string;
   image?: string;
 };
-
-class SimpleLRU<K, V> {
-  private cache: Map<K, { value: V; timestamp: number }> = new Map();
-  private max: number;
-  private ttl: number;
-
-  constructor(options: { max: number; ttl: number }) {
-    this.max = options.max;
-    this.ttl = options.ttl;
-  }
-
-  get(key: K): V | undefined {
-    const entry = this.cache.get(key);
-    if (!entry) return undefined;
-    
-    // Check if entry is expired
-    if (Date.now() - entry.timestamp > this.ttl) {
-      this.cache.delete(key);
-      return undefined;
-    }
-    
-    return entry.value;
-  }
-
-  set(key: K, value: V): void {
-    // Remove oldest entries if we're at max capacity
-    if (this.cache.size >= this.max) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey) this.cache.delete(firstKey);
-    }
-    
-    this.cache.set(key, { value, timestamp: Date.now() });
-  }
-}
-
+import { LRUCache } from 'lru-cache';
+const cache = new LRUCache<string, LinkPreview>({
+  max: 500,
+  ttl: 1000 * 60 * 60 * 24, // 24h
+});
 const cache = new SimpleLRU<string, LinkPreview>({ max: 500, ttl: 1000 * 60 * 60 * 24 }); // 24h
 
 // --- IP Utilities (safe) ---
