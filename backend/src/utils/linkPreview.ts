@@ -67,15 +67,22 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
       return false;
     };
 
-    const checkSSRF = async (rawUrl: string) => {
-      const u = new URL(rawUrl);
-      if (!['http:', 'https:'].includes(u.protocol)) return false;
-      // @ts-ignore
-      const dns = await import('node:dns/promises').then(m => m).catch(() => null as any);
-      if (!dns) return true; // Skip SSRF check if DNS module is not available
-      const addrs = await dns.lookup(u.hostname, { all: true });
-      if (!addrs?.length) return false;
-      
+// At the top of backend/src/utils/linkPreview.ts
+import LinkifyIt from 'linkify-it';
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
+import * as dns from 'node:dns/promises';
+// …
+// Replace the existing dynamic‐import version of checkSSRF with:
+const checkSSRF = async (rawUrl: string) => {
+  const u = new URL(rawUrl);
+  if (!['http:', 'https:'].includes(u.protocol)) return false;
+  // dns imported at module scope; if unavailable, deny by default
+  if (!dns) return false;
+  const addrs = await dns.lookup(u.hostname, { all: true });
+  if (!addrs?.length) return false;
+  // …rest of your SSRF checks…
+};
       for (const { address } of addrs) {
         if (address.includes(':')) {
           // IPv4-mapped IPv6 (dotted or hex forms)
