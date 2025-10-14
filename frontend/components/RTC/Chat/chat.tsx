@@ -3,17 +3,48 @@ import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { toast } from "sonner";
 
+type LinkPreview = {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+};
+
 type ChatMessage = {
   text: string;
   from: string;
   clientId: string;
   ts: number;
   kind?: "user" | "system";
+  linkPreview?: LinkPreview;
 };
 
 const MAX_LEN = 1000;        // match server cap
 const MAX_BUFFER = 300;      // keep memory tidy
 const TYPING_DEBOUNCE = 350; // ms
+
+// Function to convert URLs in text to clickable links
+const linkifyText = (text: string) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={index} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-400 hover:text-blue-300 underline"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
 
 export default function ChatPanel({
   socket,
@@ -107,6 +138,19 @@ export default function ChatPanel({
         } catch {}
     };
 
+    // Handle link preview updates
+    const onMsgUpdate = (update: { clientId: string; ts: number; linkPreview: LinkPreview }) => {
+      setMessages(prev => {
+        return prev.map(msg => {
+          // Find the message that matches the clientId and timestamp
+          if (msg.clientId === update.clientId && msg.ts === update.ts) {
+            return { ...msg, linkPreview: update.linkPreview };
+          }
+          return msg;
+        });
+      });
+    };
+
     const onSystem = (m: { text: string; ts?: number }) => {
       // normalize system text: keep my own name, anonymize peers as "peer"
       const normalize = (txt: string) => {
@@ -153,6 +197,7 @@ export default function ChatPanel({
 
     socket.on("connect", onConnect);
     socket.on("chat:message", onMsg);
+    socket.on("chat:message:update", onMsgUpdate);
     socket.on("chat:system", onSystem);
     socket.on("chat:typing", onTyping);
     // socket.on("partner:left", onPartnerLeft);
@@ -166,6 +211,7 @@ export default function ChatPanel({
     return () => {
       socket.off("connect", onConnect);
       socket.off("chat:message", onMsg);
+      socket.off("chat:message:update", onMsgUpdate);
       socket.off("chat:system", onSystem);
       socket.off("chat:typing", onTyping);
       // socket.off("partner:left", onPartnerLeft);
@@ -236,7 +282,36 @@ export default function ChatPanel({
                 ) : (
                   <>
                     {!mine && <div className="text-[10px] text-white/60 mb-1">Peer</div>}
-                    <div>{m.text}</div>
+                    <div>{linkifyText(m.text)}</div>
+                    {m.linkPreview && (
+                      <div className="mt-2 border border-white/20 rounded-lg overflow-hidden">
+                        {m.linkPreview.image && (
+                          <img 
+                            src={m.linkPreview.image} 
+                            alt={m.linkPreview.title || "Link preview"} 
+                            className="w-full h-32 object-cover"
+                          />
+                        )}
+                        <div className="p-2">
+                          {m.linkPreview.title && (
+                            <div className="font-medium text-sm truncate">{m.linkPreview.title}</div>
+                          )}
+                          {m.linkPreview.description && (
+                            <div className="text-xs text-white/70 mt-1 line-clamp-2">{m.linkPreview.description}</div>
+                          )}
+                          <div className="text-xs text-white/50 mt-1 truncate">
+                            <a 
+                              href={m.linkPreview.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300"
+                            >
+                              {m.linkPreview.url}
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

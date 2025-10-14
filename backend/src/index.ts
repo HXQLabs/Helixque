@@ -11,9 +11,6 @@ import { wireChat /*, joinChatRoom */ } from "./chat/chat"; // keep wiring util
 
 import type { HandshakeAuth, HandshakeQuery, ChatJoinPayload } from "./type";
 
-
-import { setupMessageHandler } from "./controllers/messageController";
-
 const app = express();
 const server = http.createServer(app);
 
@@ -62,8 +59,8 @@ io.on("connection", (socket: Socket) => {
 
   // Hook up chat listeners (chat:join, chat:message, chat:typing)
   wireChat(io, socket);
-  // Hook up message handler for link preview messages
-  setupMessageHandler(io, socket);
+  // The message handler for link preview messages is now integrated into the chat system
+  // setupMessageHandler(io, socket);  // Removed as it's no longer needed
 
   // Auto-join a chat room if the client provided it (supports auth or query)
   // Normalize to using `chat:<roomId>` as the room namespace everywhere
