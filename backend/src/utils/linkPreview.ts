@@ -1,7 +1,7 @@
 import LinkifyIt from 'linkify-it';
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
-
+import * as dns from 'node:dns/promises';
 
 const linkify = new LinkifyIt();
 
@@ -11,11 +11,13 @@ export type LinkPreview = {
   description?: string;
   image?: string;
 };
+
 import { LRUCache } from 'lru-cache';
 const cache = new LRUCache<string, LinkPreview>({
   max: 500,
   ttl: 1000 * 60 * 60 * 24, // 24h
 });
+
 // --- IP Utilities (safe) ---
 function ipToInt(ip: string): number | null {
   const octets = ip.split('.');
@@ -67,22 +69,13 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
       return false;
     };
 
-// At the top of backend/src/utils/linkPreview.ts
-import LinkifyIt from 'linkify-it';
-import fetch from 'node-fetch';
-import * as cheerio from 'cheerio';
-import * as dns from 'node:dns/promises';
-// …
-// Replace the existing dynamic‐import version of checkSSRF with:
-const checkSSRF = async (rawUrl: string) => {
-  const u = new URL(rawUrl);
-  if (!['http:', 'https:'].includes(u.protocol)) return false;
-  // dns imported at module scope; if unavailable, deny by default
-  if (!dns) return false;
-  const addrs = await dns.lookup(u.hostname, { all: true });
-  if (!addrs?.length) return false;
-  // …rest of your SSRF checks…
-};
+    const checkSSRF = async (rawUrl: string) => {
+      const u = new URL(rawUrl);
+      if (!['http:', 'https:'].includes(u.protocol)) return false;
+      // dns imported at module scope; if unavailable, deny by default
+      if (!dns) return false;
+      const addrs = await dns.lookup(u.hostname, { all: true });
+      if (!addrs?.length) return false;
       for (const { address } of addrs) {
         if (address.includes(':')) {
           // IPv4-mapped IPv6 (dotted or hex forms)
@@ -119,11 +112,16 @@ const checkSSRF = async (rawUrl: string) => {
       if (!(await checkSSRF(current))) return null;
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeout);
-      const res = await fetch(current, {
-        redirect: 'manual',
-        signal: controller.signal,
-        headers: { 'User-Agent': 'Helixque-Link-Preview/1.0' },
-      }).finally(() => clearTimeout(id));
+      let res: any;
+      try {
+        res = await fetch(current, {
+          redirect: 'manual',
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Helixque-Link-Preview/1.0' },
+        });
+      } finally {
+        clearTimeout(id);
+      }
 
       // Redirect handling (manual to re-check SSRF per hop)
       if (res.status >= 300 && res.status < 400) {
