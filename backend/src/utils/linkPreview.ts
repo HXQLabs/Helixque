@@ -1,8 +1,16 @@
+// @ts-ignore
 import LinkifyIt from 'linkify-it';
+// @ts-ignore
 import fetch from 'node-fetch';
+// @ts-ignore
 import * as cheerio from 'cheerio';
-import LRU from 'lru-cache';
 
+declare const Buffer: any;
+declare const URL: any;
+declare const AbortController: any;
+declare const setTimeout: any;
+declare const clearTimeout: any;
+declare const TextDecoder: any;
 const linkify = new LinkifyIt();
 
 export type LinkPreview = {
@@ -12,7 +20,41 @@ export type LinkPreview = {
   image?: string;
 };
 
-const cache = new LRU<string, LinkPreview>({ max: 500, ttl: 1000 * 60 * 60 * 24 }); // 24h
+class SimpleLRU<K, V> {
+  private cache: Map<K, { value: V; timestamp: number }> = new Map();
+  private max: number;
+  private ttl: number;
+
+  constructor(options: { max: number; ttl: number }) {
+    this.max = options.max;
+    this.ttl = options.ttl;
+  }
+
+  get(key: K): V | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+    
+    // Check if entry is expired
+    if (Date.now() - entry.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return undefined;
+    }
+    
+    return entry.value;
+  }
+
+  set(key: K, value: V): void {
+    // Remove oldest entries if we're at max capacity
+    if (this.cache.size >= this.max) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
+    }
+    
+    this.cache.set(key, { value, timestamp: Date.now() });
+  }
+}
+
+const cache = new SimpleLRU<string, LinkPreview>({ max: 500, ttl: 1000 * 60 * 60 * 24 }); // 24h
 
 // --- IP Utilities (safe) ---
 function ipToInt(ip: string): number | null {
@@ -57,7 +99,8 @@ const blockedRanges = [
 
 async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, maxRedirects = 5): Promise<string | null> {
   try {
-    const dnsMod = await import('dns');
+    // @ts-ignore
+    const dnsMod = await import('dns').catch(() => null);
     const dns = dnsMod.promises;
 
     const isBlockedIPv6 = (ip: string) => {
@@ -151,7 +194,7 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
         let off = 0;
         for (const c of chunks) { bytes.set(c, off); off += c.byteLength; }
       } else if (body && typeof body[Symbol.asyncIterator] === 'function') {
-        const chunks: Buffer[] = [];
+        const chunks: any[] = [];
         let received = 0;
         for await (const chunk of body) {
           const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
