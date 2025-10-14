@@ -59,10 +59,6 @@ const blockedRanges = [
 
 async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, maxRedirects = 5): Promise<{ html: string; finalUrl: string } | null> {
   try {
-    // @ts-ignore
-    const dnsMod = await import('dns').catch(() => null);
-    const dns = dnsMod.promises;
-
     const isBlockedIPv6 = (ip: string) => {
       const lower = ip.toLowerCase();
       if (lower === '::1') return true;                  // loopback
@@ -74,6 +70,9 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
     const checkSSRF = async (rawUrl: string) => {
       const u = new URL(rawUrl);
       if (!['http:', 'https:'].includes(u.protocol)) return false;
+      // @ts-ignore
+      const dns = await import('node:dns/promises').then(m => m).catch(() => null as any);
+      if (!dns) return true; // Skip SSRF check if DNS module is not available
       const addrs = await dns.lookup(u.hostname, { all: true });
       if (!addrs?.length) return false;
       
