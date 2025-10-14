@@ -16,8 +16,6 @@ const cache = new LRUCache<string, LinkPreview>({
   max: 500,
   ttl: 1000 * 60 * 60 * 24, // 24h
 });
-const cache = new SimpleLRU<string, LinkPreview>({ max: 500, ttl: 1000 * 60 * 60 * 24 }); // 24h
-
 // --- IP Utilities (safe) ---
 function ipToInt(ip: string): number | null {
   const octets = ip.split('.');
@@ -59,7 +57,7 @@ const blockedRanges = [
   '224.0.0.0/4', // multicast
 ];
 
-async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, maxRedirects = 5): Promise<string | null> {
+async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, maxRedirects = 5): Promise<{ html: string; finalUrl: string } | null> {
   try {
     // @ts-ignore
     const dnsMod = await import('dns').catch(() => null);
@@ -173,7 +171,7 @@ async function fetchHTML(url: string, timeout = 7000, maxSize = 1024 * 1024, max
         return null;
       }
 
-      return new TextDecoder('utf-8').decode(bytes);
+      return { html: new TextDecoder('utf-8').decode(bytes), finalUrl: current };
     }
     return null;
   } catch {
@@ -200,13 +198,14 @@ export async function extractLinkPreviewFromText(text: string): Promise<LinkPrev
   const cached = cache.get(first);
   if (cached) return cached;
 
-  const html = await fetchHTML(first);
-  if (!html) {
+  const result = await fetchHTML(first);
+  if (!result) {
     const minimal: LinkPreview = { url: first };
     cache.set(first, minimal);
     return minimal;
   }
 
+  const { html, finalUrl } = result;
   const $ = cheerio.load(html);
 
   const ogTitle = $('meta[property="og:title"]').attr('content') || $('meta[name="twitter:title"]').attr('content');
@@ -215,10 +214,14 @@ export async function extractLinkPreviewFromText(text: string): Promise<LinkPrev
 
   const title = ogTitle || $('title').text() || undefined;
   const description = ogDescription || undefined;
-  const image = absoluteUrl(first, ogImage);
+  const image = absoluteUrl(finalUrl, ogImage);
 
-  const preview: LinkPreview = { url: first, title, description, image };
-  cache.set(first, preview);
+  const preview: LinkPreview = { url: finalUrl, title, description, image };
+  cache.set(finalUrl, preview);
+  // Also cache under the original URL to handle both
+  if (finalUrl !== first) {
+    cache.set(first, preview);
+  }
   return preview;
 }
 
