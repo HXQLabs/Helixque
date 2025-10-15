@@ -37,6 +37,7 @@ export default function ChatPanel({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidRef = useRef<string | null>(mySocketId ?? null);
+  const didJoinRef = useRef<Record<string, string>>({});
 
   // derive & keep socket.id fresh for self-dedupe
   useEffect(() => {
@@ -73,11 +74,18 @@ export default function ChatPanel({
     if (!socket || !roomId) return;
 
     const join = () => socket.emit("chat:join", { roomId, name });
+    const joinOnce = () => {
+      const sid = socket.id ?? null;
+      const key = `${roomId}`;
+      if (sid && didJoinRef.current[key] === sid) return; // already joined for this room with this socket id
+      if (sid) didJoinRef.current[key] = sid;
+      join();
+    };
     // initial join will be emitted after listeners are attached
     const onConnect = () => {
       // re-join on reconnect
       sidRef.current = socket.id ?? null;
-      join();
+      joinOnce();
     };
 
     const onMsg = (m: ChatMessage) => {
@@ -151,23 +159,39 @@ export default function ChatPanel({
     //   onSystem({ text: `Your partner left (${reason}).` });
     // };
 
+    // Server-sent history: merge with current messages and de-dupe
+    const onHistory = (payload: { roomId: string; messages: ChatMessage[] }) => {
+      if (!payload || payload.roomId !== roomId) return;
+      const incoming = Array.isArray(payload.messages) ? payload.messages : [];
+      if (incoming.length === 0) return;
+      setMessages((prev) => {
+        const keyOf = (x: ChatMessage) => `${x.kind || 'user'}|${x.ts}|${x.clientId}|${x.text}`;
+        const seen = new Set(prev.map(keyOf));
+        const add = incoming.filter((m) => !seen.has(keyOf(m)));
+        if (add.length === 0) return prev;
+        const merged = [...prev, ...add];
+        return merged.length > MAX_BUFFER ? merged.slice(-MAX_BUFFER) : merged;
+      });
+    };
+
     socket.on("connect", onConnect);
     socket.on("chat:message", onMsg);
     socket.on("chat:system", onSystem);
     socket.on("chat:typing", onTyping);
+    socket.on("chat:history", onHistory);
     // socket.on("partner:left", onPartnerLeft);
 
-    // clear chat when switching rooms BEFORE join to avoid wiping fresh system events
-    setMessages([]);
-
-    // now that listeners are wired, perform initial join
-    join(); // initial
+    // perform initial join only once per socket.id+room
+    if (socket.connected) {
+      onConnect();
+    }
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("chat:message", onMsg);
       socket.off("chat:system", onSystem);
       socket.off("chat:typing", onTyping);
+      socket.off("chat:history", onHistory);
       // socket.off("partner:left", onPartnerLeft);
       // stop typing when leaving room/unmounting
       socket.emit("chat:typing", { roomId, from: name, typing: false });

@@ -22,8 +22,6 @@ Thank you for your interest in contributing to Helixque! This document provides 
 3. **Pull Request Policy on Discord**  
    - Before raising a PR, **check the `#pull-request` channel** to ensure there isn’t already an open PR for the same issue.  
    - If no one is working on it, go ahead and raise your PR and mention it in the channel.
-  
-4. **sign up in helixque https://helixque.netlify.app/**
 
 ---
 
