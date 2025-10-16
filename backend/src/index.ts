@@ -8,6 +8,7 @@ import { UserManager } from "./managers/UserManger"; // corrected spelling
 // import { createAdapter } from "@socket.io/redis-adapter";
 
 import { wireChat /*, joinChatRoom */ } from "./chat/chat"; // keep wiring util
+import { checkHealth } from "./health";
 
 import type { HandshakeAuth, HandshakeQuery, ChatJoinPayload } from "./type";
 
@@ -22,22 +23,17 @@ const userManager = new UserManager();
 // Set the io instance for UserManager after creation
 userManager.setIo(io);
 
-// Health endpoint
-app.get("/healthz", async (_req, res) => {
-  try {
-    // const online = await countOnline().catch(() => -1);
-    // res.json({ ok: true, online });
-    res.json({ ok: true, online: -1 }); // fallback without Redis
-  } catch {
-    res.json({ ok: true, online: -1 });
-  }
+
+app.get("/health", async (_req, res) => {
+  const health = await checkHealth();
+  res.status(health.status).json(health);
 });
 
 const HEARTBEAT_MS = Number(process.env.SOCKET_HEARTBEAT_MS || 30_000);
 const heartbeats = new Map<string, NodeJS.Timeout>();
 
 io.on("connection", (socket: Socket) => {
-  // console.log(`[io] connected ${socket.id}`);
+  console.log(`[io] connected ${socket.id}`);
 
   // Derive meta
   const meta = {
@@ -152,7 +148,7 @@ io.on("connection", (socket: Socket) => {
   });
 
   socket.on("disconnect", (reason) => {
-    // console.log(`[io] disconnected ${socket.id} (${reason})`);
+    console.log(`[io] disconnected ${socket.id} (${reason})`);
 
     const hbRef = heartbeats.get(socket.id);
     if (hbRef) {
@@ -193,13 +189,3 @@ server.listen(PORT, () => console.log(`listening on *:${PORT}`));
 
 const shutdown = (signal: string) => {
   console.log(`Received ${signal}. Shutting down gracefully...`);
-  server.close(() => {
-    console.log("HTTP server closed.");
-    // cleanup: clear all heartbeats
-    heartbeats.forEach((hb) => clearInterval(hb));
-    process.exit(0);
-  });
-};
-
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
