@@ -2,6 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { toast } from "sonner";
+import type {EmojiClickData} from "emoji-picker-react"
+import EmojiPicker , {Theme} from "emoji-picker-react";
+import { RiEmojiStickerLine } from 'react-icons/ri'
 
 type ChatMessage = {
   text: string;
@@ -37,6 +40,22 @@ export default function ChatPanel({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidRef = useRef<string | null>(mySocketId ?? null);
+  const emojiRef=useRef<HTMLDivElement>(null)
+  const [emojiPickerOpen,setEmojiPickerOpen]=useState<boolean>(false);
+
+
+  // closes emoji picker if clicked outside
+      useEffect(()=>{
+        function handleClickOutside(event:MouseEvent){
+            if(emojiRef.current && !emojiRef.current.contains(event.target as Node)){
+                    setEmojiPickerOpen(false);
+            }
+        }
+        document.addEventListener("mousedown",handleClickOutside);
+        return ()=>{
+            document.removeEventListener("mousedown",handleClickOutside)         
+        }
+    },[emojiRef])
 
   // derive & keep socket.id fresh for self-dedupe
   useEffect(() => {
@@ -52,6 +71,7 @@ export default function ChatPanel({
   }, [socket]);
 
   const canSend = !!socket && socket.connected && !!roomId && !!name && !!(sidRef.current || mySocketId);
+ 
 
   // Dismiss existing toasts when chat window opens
   useEffect(() => {
@@ -200,6 +220,17 @@ export default function ChatPanel({
     socket!.emit("chat:typing", { roomId, from: name, typing: false });
   };
 
+  const handleAddEmoji = async(emoji: EmojiClickData) => {
+       const newMsg = input + emoji.emoji;
+       setInput(newMsg);
+       
+          if (!socket || !roomId) return;
+             if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+              typingDebounceRef.current = setTimeout(() => {
+      socket.emit("chat:typing", { roomId, from: name, typing: !!newMsg });
+    }, TYPING_DEBOUNCE);
+    }
+
   const handleTyping = (value: string) => {
     setInput(value);
     if (!socket || !roomId) return;
@@ -248,8 +279,9 @@ export default function ChatPanel({
 
       <div className="p-3 border-t border-white/10">
         <div className="flex items-center gap-2">
+            <div className="relative w-full flex-1">
           <input
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/60"
+            className=" bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/60 w-full"
             placeholder={canSend ? "Type a message…" : "Connecting chat…"}
             value={input}
             onChange={(e) => handleTyping(e.target.value)}
@@ -258,7 +290,17 @@ export default function ChatPanel({
             }}
             disabled={!canSend}
             maxLength={MAX_LEN}
-          />
+
+          /> 
+         <div className="absolute right-2 bottom-0 ">
+          <button onClick={()=>{if(canSend)setEmojiPickerOpen(true)}} className={`${canSend ? ' hover:text-white focus:text-white ' : '' } text-neutral-500 focus:border-none focus:outline-none duration-300 transition-all`}>
+            <RiEmojiStickerLine size={24}/>
+          </button>
+          <div className='absolute bottom-16 right-0' ref={emojiRef}>
+            <EmojiPicker theme={Theme.DARK} open={emojiPickerOpen} onEmojiClick={handleAddEmoji} autoFocusSearch={false}/>
+          </div>
+        </div>
+       </div>
           <button
             onClick={sendMessage}
             disabled={!canSend || !input.trim()}
