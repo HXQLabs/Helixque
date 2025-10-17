@@ -115,23 +115,21 @@ export default function Room({
       pc.addTrack(localAudioTrack);
     }
     
-    if (camOn) {
-      let videoTrack = currentVideoTrackRef.current;
-      if (!videoTrack || videoTrack.readyState === "ended") {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          videoTrack = stream.getVideoTracks()[0];
-          currentVideoTrackRef.current = videoTrack;
-        } catch (err) {
-          // console.error("Error creating video track:", err);
-          videoTrack = null;
-        }
+    let videoTrack = currentVideoTrackRef.current;
+    if (!videoTrack || videoTrack.readyState === "ended") {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoTrack = stream.getVideoTracks()[0];
+        currentVideoTrackRef.current = videoTrack;
+      } catch (err) {
+        console.error("Error creating video track:", err);
+        videoTrack = null;
       }
-      
-      if (videoTrack && videoTrack.readyState === "live") {
-        const vs = pc.addTrack(videoTrack);
-        videoSenderRef.current = vs;
-      }
+    }
+    
+    if (videoTrack && videoTrack.readyState === "live") {
+      const vs = pc.addTrack(videoTrack);
+      videoSenderRef.current = vs;
     }
 
     ensureRemoteStreamLocal();
