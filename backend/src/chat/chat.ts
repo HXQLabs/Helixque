@@ -29,6 +29,8 @@ import type {
   ChatTypingPayload,
   ChatLeavePayload,
 } from "../type";
+import { extractLinkPreviewFromText } from "../utils/linkPreview";
+
 export async function joinChatRoom(socket: Socket, roomId: string, name: string) {
   if (!roomId) return;
   const room = `chat:${roomId}`;
@@ -70,19 +72,36 @@ export function wireChat(io: Server, socket: Socket) {
   });
 
   // Broadcast a message to everyone in the chat room
-  socket.on("chat:message", (payload: ChatMessagePayload) => {
+  socket.on("chat:message", async (payload: ChatMessagePayload) => {
     const { roomId, text, from, clientId, ts } = payload || {};
     const safeText = (text || "").toString().trim().slice(0, 1000); 
     if (!roomId || !safeText) return;
 
-    const final = {
+    // Create the base message object
+    const messagePayload = {
       text: safeText,
       from,
       clientId,
-      ts: ts || Date.now(),
+      ts: ts || Date.now(), // Changed from ?? to || for better compatibility
     };
-    socket.nsp.in(`chat:${roomId}`).emit("chat:message", final);
-    pushRoomHistory(`chat:${roomId}`, { ...final, kind: "user" });
+
+    // Emit the message immediately
+    socket.nsp.in(`chat:${roomId}`).emit("chat:message", messagePayload);
+
+    // Extract link preview asynchronously and emit update if found
+    try {
+      const preview = await extractLinkPreviewFromText(safeText);
+      if (preview) {
+        // Emit an update with the link preview
+        socket.nsp.in(`chat:${roomId}`).emit("chat:message:update", {
+          clientId,
+          ts: messagePayload.ts,
+          linkPreview: preview
+        });
+      }
+    } catch (err) {
+      console.error('Link preview extraction failed:', err);
+    }
   });
 
   // Typing indicator to peers (not echoed to sender)

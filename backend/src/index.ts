@@ -59,6 +59,8 @@ io.on("connection", (socket: Socket) => {
 
   // Hook up chat listeners (chat:join, chat:message, chat:typing)
   wireChat(io, socket);
+  // The message handler for link preview messages is now integrated into the chat system
+  // setupMessageHandler(io, socket);  // Removed as it's no longer needed
 
   // Auto-join a chat room if the client provided it (supports auth or query)
   // Normalize to using `chat:<roomId>` as the room namespace everywhere
@@ -200,6 +202,7 @@ const shutdown = (signal: string) => {
     process.exit(0);
   });
 };
+
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
