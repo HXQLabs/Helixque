@@ -37,7 +37,7 @@ const HEARTBEAT_MS = Number(process.env.SOCKET_HEARTBEAT_MS || 30_000);
 const heartbeats = new Map<string, NodeJS.Timeout>();
 
 io.on("connection", (socket: Socket) => {
-  console.log(`[io] connected ${socket.id}`);
+  // console.log(`[io] connected ${socket.id}`);
 
   // Derive meta
   const meta = {
@@ -68,10 +68,9 @@ io.on("connection", (socket: Socket) => {
   const normalizeRoom = (r: string) => (r ? `chat:${r}` : "");
 
   const initialRoomId = normalizeRoom(initialRoomRaw);
-
+  // Do not auto-join here; let chat.ts handle joining and announcements to avoid duplicates
   if (initialRoomId) {
     userManager.setRoom(socket.id, initialRoomId);
-    socket.join(initialRoomId); // join the chat namespaced room
   }
 
   // Keep UserManager in sync when client explicitly joins later
@@ -79,13 +78,8 @@ io.on("connection", (socket: Socket) => {
     try {
       if (!roomId || typeof roomId !== "string") return;
       const namespaced = normalizeRoom(roomId.trim());
+      // Keep UserManager in sync only; actual join + announcements are handled in chat.ts
       userManager.setRoom(socket.id, namespaced);
-      socket.join(namespaced);
-      // Optionally announce system join to the room:
-      socket.nsp.in(namespaced).emit("chat:system", {
-        text: `${meta.name} joined the chat`,
-        ts: Date.now(),
-      });
     } catch (err) {
       console.warn("[chat:join] error", err);
     }
@@ -158,7 +152,7 @@ io.on("connection", (socket: Socket) => {
   });
 
   socket.on("disconnect", (reason) => {
-    console.log(`[io] disconnected ${socket.id} (${reason})`);
+    // console.log(`[io] disconnected ${socket.id} (${reason})`);
 
     const hbRef = heartbeats.get(socket.id);
     if (hbRef) {
@@ -168,14 +162,7 @@ io.on("connection", (socket: Socket) => {
 
     // presenceDown(socket.id).catch((e) => console.warn("[presenceDown]", e?.message));
 
-    const u = userManager.getUser(socket.id);
-    if (u?.roomId) {
-      // announce left to the same namespaced room
-      socket.nsp.in(u.roomId).emit("chat:system", {
-        text: `${u.name} left the chat`,
-        ts: Date.now(),
-      });
-    }
+    // chat.ts handles leave announcements in its disconnecting handler
 
     userManager.removeUser(socket.id);
   });

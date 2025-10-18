@@ -99,9 +99,9 @@ export default function Room({
       if (candidate) {
         try {
           await pc.addIceCandidate(candidate);
-          console.log("Processed queued ICE candidate");
+          // console.log("Processed queued ICE candidate");
         } catch (e) {
-          console.error("Error processing queued ICE candidate:", e);
+          // console.error("Error processing queued ICE candidate:", e);
         }
       }
     }
@@ -123,7 +123,7 @@ export default function Room({
           videoTrack = stream.getVideoTracks()[0];
           currentVideoTrackRef.current = videoTrack;
         } catch (err) {
-          console.error("Error creating video track:", err);
+          // console.error("Error creating video track:", err);
           videoTrack = null;
         }
       }
@@ -136,7 +136,6 @@ export default function Room({
 
     ensureRemoteStreamLocal();
     pc.ontrack = (e) => {
-      console.log("🎯 Received track event!");
       if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
       if (e.track.kind === 'video') {
         remoteStreamRef.current.getVideoTracks().forEach(track => 
@@ -173,7 +172,7 @@ export default function Room({
     }
     setShowTimeoutAlert(false);
     setLobby(false);
-    setStatus("Search paused. Click Try Again to rejoin the queue.");
+    window.location.reload();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -207,7 +206,6 @@ export default function Room({
 
   const toggleScreenShare = async () => {
     const turningOn = !screenShareOn;
-    console.log("🖥️ Toggle screen share - turning:", turningOn ? "ON" : "OFF");
     setScreenShareOn(turningOn);
 
     try {
@@ -215,7 +213,6 @@ export default function Room({
 
       if (turningOn) {
         try {
-          console.log("🎬 Starting screen capture...");
           const screenStream = await navigator.mediaDevices.getDisplayMedia({
             video: true,
             audio: true
@@ -256,7 +253,7 @@ export default function Room({
                   cameraTrack = cameraStream.getVideoTracks()[0];
                   currentVideoTrackRef.current = cameraTrack;
                 } catch (err: any) {
-                  console.error("Error getting camera after screen share:", err);
+                  // console.error("Error getting camera after screen share:", err);
                   cameraTrack = null;
                 }
               }
@@ -286,7 +283,7 @@ export default function Room({
           };
 
         } catch (error: any) {
-          console.error("Error starting screen share:", error);
+          // console.error("Error starting screen share:", error);
           toast.error("Screen Share Error", {
             description: error?.message || "Failed to start screen sharing"
           });
@@ -321,7 +318,7 @@ export default function Room({
                 await localVideoRef.current.play().catch(() => {});
               }
             } catch (err: any) {
-              console.error("Error getting camera after stopping screen share:", err);
+              // console.error("Error getting camera after stopping screen share:", err);
               toast.error("Camera Error", {
                 description: "Failed to restore camera after stopping screen share"
               });
@@ -345,7 +342,7 @@ export default function Room({
         currentScreenShareTrackRef.current = null;
       }
     } catch (error: any) {
-      console.error("toggleScreenShare error", error);
+      // console.error("toggleScreenShare error", error);
       toast.error("Screen Share Error", {
         description: error?.message || "Failed to toggle screen sharing"
       });
@@ -455,8 +452,6 @@ export default function Room({
   };
 
   function handleNextConnection(currentCamState: boolean, currentMicState: boolean, reason: "next" | "partner-left" = "next") {
-    console.log("🔄 HANDLE_NEXT_CONNECTION START:", { currentCamState, currentMicState, reason });
-    
     // Clear ICE candidate queues
     senderIceCandidatesQueue.current = [];
     receiverIceCandidatesQueue.current = [];
@@ -484,15 +479,12 @@ export default function Room({
     );
 
     if (!currentCamState) {
-      console.log("🚫 CAMERA OFF - Cleaning up video tracks");
       if (currentVideoTrackRef.current) {
         try {
-          console.log("🛑 Stopping video track:", currentVideoTrackRef.current.id);
           currentVideoTrackRef.current.stop();
           currentVideoTrackRef.current = null;
-          console.log("✅ Video track stopped and cleared");
         } catch (err) {
-          console.error("❌ Error stopping video track:", err);
+          // console.error("❌ Error stopping video track:", err);
         }
       }
       
@@ -504,13 +496,11 @@ export default function Room({
             t.stop();
             ms.removeTrack(t);
           } catch (err) {
-            console.error("❌ Error stopping local preview track:", err);
+            // console.error("❌ Error stopping local preview track:", err);
           }
         }
       }
     }
-
-    console.log("🔄 HANDLE_NEXT_CONNECTION END - States preserved:", { camOn: currentCamState, micOn: currentMicState });
   }
 
   // ===== EFFECTS =====
@@ -569,7 +559,6 @@ export default function Room({
     s.connect();
 
     s.on("connect", () => {
-      console.log("[FRONTEND] Socket connected to:", URL);
       setMySocketId(s.id ?? null);
       if (!joinedRef.current) {
         joinedRef.current = true;
@@ -579,13 +568,20 @@ export default function Room({
     // ----- CALLER -----
     s.on("send-offer", async ({ roomId: rid }) => {
       setRoomId(rid);
-      s.emit("chat:join", { roomId: rid, name });
       setLobby(false);
       setStatus("Connecting…");
       
-      toast.success("Connected!", {
-        description: "You've been connected to someone"
-      });
+      // Add a small delay to ensure any previous toasts are displayed
+      setTimeout(() => {
+        toast.success("Connected!", {
+          id: "connected-toast-" + rid, // Unique ID per room
+          description: "You've been connected to someone"
+        });
+        // Emit chat join after a small delay to ensure listeners are attached
+        setTimeout(() => {
+          s.emit("chat:join", { roomId: rid, name });
+        }, 100);
+      }, 100);
 
       const pc = new RTCPeerConnection();
       sendingPcRef.current = pc;
@@ -601,13 +597,20 @@ export default function Room({
     // ----- ANSWERER -----
     s.on("offer", async ({ roomId: rid, sdp: remoteSdp }) => {
       setRoomId(rid);
-      s.emit("chat:join", { roomId: rid, name });
       setLobby(false);
       setStatus("Connecting…");
       
-      toast.success("Connected!", {
-        description: "You've been connected to someone"
-      });
+      // Add a small delay to ensure any previous toasts are displayed
+      setTimeout(() => {
+        toast.success("Connected!", {
+          id: "connected-toast-" + rid, // Unique ID per room
+          description: "You've been connected to someone"
+        });
+        // Emit chat join after a small delay to ensure listeners are attached
+        setTimeout(() => {
+          s.emit("chat:join", { roomId: rid, name });
+        }, 100);
+      }, 100);
 
       const pc = new RTCPeerConnection();
       receivingPcRef.current = pc;
@@ -644,7 +647,6 @@ export default function Room({
           } else {
             // Queue the candidate until remote description is set
             receiverIceCandidatesQueue.current.push(ice);
-            console.log("Queued ICE candidate for receiver (no remote description yet)");
           }
         } else {
           const pc = sendingPcRef.current;
@@ -653,17 +655,15 @@ export default function Room({
           } else {
             // Queue the candidate until remote description is set
             senderIceCandidatesQueue.current.push(ice);
-            console.log("Queued ICE candidate for sender (no remote description yet)");
           }
         }
       } catch (e) {
-        console.error("addIceCandidate error", e);
+        // console.error("addIceCandidate error", e);
       }
     });
 
     // Renegotiation handlers
     s.on("renegotiate-offer", async ({ sdp, role }) => {
-      console.log("Received renegotiation offer from", role);
       const pc = receivingPcRef.current;
       if (pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -674,7 +674,6 @@ export default function Room({
     });
 
     s.on("renegotiate-answer", async ({ sdp, role }) => {
-      console.log("Received renegotiation answer from", role);
       const pc = sendingPcRef.current;
       if (pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -683,7 +682,6 @@ export default function Room({
 
     // Simplified event handlers - full WebRTC logic would go here
     s.on("lobby", () => {
-      console.log("[FRONTEND] Received lobby event");
       setLobby(true);
       setStatus("Waiting to connect you to someone…");
     });
@@ -694,7 +692,6 @@ export default function Room({
     });
 
     s.on("queue:timeout", ({ message }: { message: string }) => {
-      console.log("[FRONTEND] Received queue:timeout event:", { message });
       setTimeoutMessage(message);
       setShowTimeoutAlert(true);
       setLobby(true);
@@ -702,8 +699,8 @@ export default function Room({
     });
 
     s.on("partner:left", () => {
-      console.log("👋 PARTNER LEFT");
       toast.warning("Partner Left", {
+        id: "partner-left-toast-" + Date.now(), // Unique ID to prevent duplicates
         description: "Your partner has left the call"
       });
       const actualCamState = !!(currentVideoTrackRef.current && currentVideoTrackRef.current.readyState === "live" && camOn);
@@ -717,8 +714,6 @@ export default function Room({
     });
 
     s.on("peer-media-state-change", ({ isScreenSharing, micOn: peerMic, camOn: peerCam, from, userId }) => {
-      console.log("🔄 Peer media state changed:", { isScreenSharing, peerMic, peerCam, from, userId });
-      
       if (typeof isScreenSharing === "boolean") {
         setPeerScreenShareOn(isScreenSharing);
       }

@@ -10,22 +10,22 @@ export function ensureRemoteStream(
   remoteScreenShareRef: React.RefObject<HTMLVideoElement | null>,
   peerScreenShareOn: boolean
 ) {
-  console.log("🔄 ensureRemoteStream called");
+  // console.log("🔄 ensureRemoteStream called");
   
   if (!remoteStreamRef.current) {
-    console.log("📺 Creating new remote MediaStream");
+    // console.log("📺 Creating new remote MediaStream");
     remoteStreamRef.current = new MediaStream();
   }
 
   const v = remoteVideoRef.current;
   if (v) {
-    console.log("🎥 Remote video element found");
+    // console.log("🎥 Remote video element found");
     if (v.srcObject !== remoteStreamRef.current) {
-      console.log("🔗 Setting remote video srcObject");
+      // console.log("🔗 Setting remote video srcObject");
       v.srcObject = remoteStreamRef.current;
       v.playsInline = true;
       v.play().catch((err) => {
-        console.error("❌ Error playing remote video:", err);
+        // console.error("❌ Error playing remote video:", err);
       });
     }
   }
@@ -33,11 +33,11 @@ export function ensureRemoteStream(
   const screenShareVideo = remoteScreenShareRef.current;
   if (screenShareVideo && peerScreenShareOn) {
     if (screenShareVideo.srcObject !== remoteStreamRef.current) {
-      console.log("🖥️ Setting remote screen share video srcObject");
+      // console.log("🖥️ Setting remote screen share video srcObject");
       screenShareVideo.srcObject = remoteStreamRef.current;
       screenShareVideo.playsInline = true;
       screenShareVideo.play().catch((err) => {
-        console.error("❌ Error playing remote screen share video:", err);
+        // console.error("❌ Error playing remote screen share video:", err);
       });
     }
   }
@@ -45,12 +45,12 @@ export function ensureRemoteStream(
   const a = remoteAudioRef.current;
   if (a) {
     if (a.srcObject !== remoteStreamRef.current) {
-      console.log("🔊 Setting remote audio srcObject");
+      // console.log("🔊 Setting remote audio srcObject");
       a.srcObject = remoteStreamRef.current;
       a.autoplay = true;
       a.muted = false;
       a.play().catch((err) => {
-        console.error("❌ Error playing remote audio:", err);
+        // console.error("❌ Error playing remote audio:", err);
       });
     }
   }
@@ -62,15 +62,15 @@ export function detachLocalPreview(localVideoRef: React.RefObject<HTMLVideoEleme
     if (localStream) {
       localStream.getTracks().forEach((t) => {
         try {
-          console.log(`Stopping track of kind ${t.kind}`);
+          // console.log(`Stopping track of kind ${t.kind}`);
           t.stop();
         } catch (err) {
-          console.error(`Error stopping ${t.kind} track:`, err);
+          // console.error(`Error stopping ${t.kind} track:`, err);
         }
       });
     }
   } catch (err) {
-    console.error("Error in detachLocalPreview:", err);
+    // console.error("Error in detachLocalPreview:", err);
   }
   
   if (localVideoRef.current) {
@@ -89,10 +89,10 @@ export function stopProvidedTracks(
   try {
     if (localVideoTrack) {
       localVideoTrack.stop();
-      console.log("Local video track stopped");
+      // console.log("Local video track stopped");
     }
   } catch (err) {
-    console.error("Error stopping local video track:", err);
+    // console.error("Error stopping local video track:", err);
   }
   
   try {
@@ -100,7 +100,7 @@ export function stopProvidedTracks(
       localAudioTrack.stop();
     }
   } catch (err) {
-    console.error("Error stopping local audio track:", err);
+    // console.error("Error stopping local audio track:", err);
   }
   
   try {
@@ -108,10 +108,10 @@ export function stopProvidedTracks(
     if (currentTrack) {
       currentTrack.stop();
       currentVideoTrackRef.current = null;
-      console.log("Current video track stopped");
+      // console.log("Current video track stopped");
     }
   } catch (err) {
-    console.error("Error stopping current video track:", err);
+    // console.error("Error stopping current video track:", err);
   }
 }
 
@@ -136,7 +136,7 @@ export function teardownPeers(
     setStatus: (value: string) => void;
   }
 ) {
-  console.log("Tearing down peers, reason:", reason);
+  // console.log("Tearing down peers, reason:", reason);
   
   // Clean up peer connections
   try {
@@ -146,7 +146,7 @@ export function teardownPeers(
           try {
             sendingPcRef.current?.removeTrack(sn);
           } catch (err) {
-            console.error("Error removing sender track:", err);
+            // console.error("Error removing sender track:", err);
           }
         });
       } catch {}
@@ -158,14 +158,14 @@ export function teardownPeers(
           try {
             receivingPcRef.current?.removeTrack(sn);
           } catch (err) {
-            console.error("Error removing receiver track:", err);
+            // console.error("Error removing receiver track:", err);
           }
         });
       } catch {}
       receivingPcRef.current.close();
     }
   } catch (err) {
-    console.error("Error in peer connection cleanup:", err);
+    // console.error("Error in peer connection cleanup:", err);
   }
   
   sendingPcRef.current = null;
@@ -175,16 +175,16 @@ export function teardownPeers(
   if (remoteStreamRef.current) {
     try {
       const tracks = remoteStreamRef.current.getTracks();
-      console.log(`Stopping ${tracks.length} remote tracks`);
+      // console.log(`Stopping ${tracks.length} remote tracks`);
       tracks.forEach((t) => {
         try {
           t.stop();
         } catch (err) {
-          console.error(`Error stopping remote ${t.kind} track:`, err);
+          // console.error(`Error stopping remote ${t.kind} track:`, err);
         }
       });
     } catch (err) {
-      console.error("Error stopping remote tracks:", err);
+      // console.error("Error stopping remote tracks:", err);
     }
   }
   
@@ -274,7 +274,7 @@ export async function toggleCameraTrack(
       } else if (pc) {
         const sender = pc.addTrack(track);
         videoSenderRef.current = sender;
-        console.log("Added new video track to existing connection");
+        // console.log("Added new video track to existing connection");
         
         if (sendingPcRef.current === pc) {
           const offer = await pc.createOffer();
@@ -284,7 +284,7 @@ export async function toggleCameraTrack(
             sdp: offer, 
             role: "caller" 
           });
-          console.log("📤 Sent renegotiation offer for camera turn on");
+          // console.log("📤 Sent renegotiation offer for camera turn on");
         }
       }
     } else {
@@ -296,9 +296,9 @@ export async function toggleCameraTrack(
       if (track) {
         try {
           track.stop();
-          console.log("Camera track stopped");
+          // console.log("Camera track stopped");
         } catch (err) {
-          console.error("Error stopping camera track:", err);
+          // console.error("Error stopping camera track:", err);
         }
         currentVideoTrackRef.current = null;
       }
@@ -311,7 +311,7 @@ export async function toggleCameraTrack(
             t.stop();
             ms.removeTrack(t);
           } catch (err) {
-            console.error("Error stopping local preview track:", err);
+            // console.error("Error stopping local preview track:", err);
           }
         }
       }
@@ -323,7 +323,7 @@ export async function toggleCameraTrack(
       }
     }
   } catch (e: any) {
-    console.error("toggleCam error", e);
+    // console.error("toggleCam error", e);
     toast.error("Camera Error", {
       description: e?.message || "Failed to toggle camera"
     });
