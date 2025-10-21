@@ -181,8 +181,9 @@ const handleJoinRoom = () => {
 
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-gray-50">
-      <h1 className="text-3xl font-semibold mb-4">Device Check</h1>
+<div className="flex flex-col items-center justify-center min-h-screen px-4 bg-background text-foreground">
+  <div className="w-full max-w-3xl bg-card text-card-foreground rounded-2xl border border-border shadow-xl p-8">
+    <h1 className="text-3xl font-semibold mb-4">Device Check</h1>
 
       {error && <p className="mb-4 text-red-600">{error}</p>}
 
@@ -241,6 +242,7 @@ const handleJoinRoom = () => {
       >
         Join Room
       </button>
+    </div>
     </div>
   );
 }
