@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import Room from "./Room";
 import { toast } from "sonner";
-import { 
+import {
   IconMicrophone,
   IconMicrophoneOff,
   IconVideo,
   IconVideoOff,
   IconRefresh,
-  IconUser
+  IconUser,
 } from "@tabler/icons-react";
 import Tooltip from "../ui/tooltip";
 
@@ -21,12 +21,14 @@ export default function DeviceCheck() {
   const [audioOn, setAudioOn] = useState(true);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
-const localVideoTrackRef = useRef<MediaStreamTrack | null>(null);
-const getCamRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const localVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const getCamRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const isFirstAudioRun = useRef(true);
+  const isFirstVideoRun = useRef(true);
 
   const getCam = async () => {
- try {
+    try {
       localAudioTrackRef.current?.stop();
       localVideoTrackRef.current?.stop();
       let videoTrack: MediaStreamTrack | null = null;
@@ -65,41 +67,104 @@ const getCamRef = useRef<() => Promise<void>>(() => Promise.resolve());
       if (!videoOn && !audioOn && videoRef.current) {
         videoRef.current.srcObject = null;
       }
-
     } catch (e: any) {
       const errorMessage = e?.message || "Could not access camera/microphone";
       toast.error("Device Access Error", {
-        description: errorMessage
+        description: errorMessage,
       });
     }
   };
- useEffect(() => {
-   let permissionStatus: PermissionStatus | null = null;
-   async function watchCameraPermission() {
-     try {
-       permissionStatus = await navigator.permissions.query({ name: "camera" as PermissionName });
-      permissionStatus.onchange = () => {
-       if (permissionStatus?.state === "granted") {
-          getCamRef.current();
+  useEffect(() => {
+    let permissionStatus: PermissionStatus | null = null;
+    async function watchCameraPermission() {
+      try {
+        permissionStatus = await navigator.permissions.query({ name: "camera" as PermissionName });
+        permissionStatus.onchange = () => {
+          if (permissionStatus?.state === "granted") {
+            getCamRef.current();
+          }
+        };
+      } catch (e) {
+        console.warn("Permissions API not supported on this browser.");
+      }
+    }
+    watchCameraPermission();
+    return () => {
+      if (permissionStatus) permissionStatus.onchange = null;
+      localAudioTrackRef.current?.stop();
+      localVideoTrackRef.current?.stop();
+    };
+  }, []);
+  useEffect(() => {
+    getCam();
+  }, []);
+  useEffect(() => {
+    getCamRef.current = getCam;
+  });
+
+  useEffect(() => {
+    if (isFirstAudioRun.current) {
+      isFirstAudioRun.current = false;
+      return;
+    }
+
+    if (audioOn) {
+      // Turn audio ON
+      (async () => {
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const audioTrack = audioStream.getAudioTracks()[0] || null;
+          localAudioTrackRef.current = audioTrack;
+          setLocalAudioTrack(audioTrack);
+        } catch (err) {
+          console.warn("Microphone access denied or unavailable:", err);
+          toast.error("Microphone Error", { description: "Could not access microphone" });
+          setAudioOn(false); // Revert state
         }
-      };
-     } catch (e) {
-       console.warn("Permissions API not supported on this browser.");
-     }
-   }
-   watchCameraPermission();
-   return () => {
-     if (permissionStatus) permissionStatus.onchange = null;
-     localAudioTrackRef.current?.stop();
-     localVideoTrackRef.current?.stop();
-   };
- }, []); 
- useEffect(() => {
-   getCam();
- }, [videoOn, audioOn]);
-useEffect(() => {
-  getCamRef.current = getCam;
-});
+      })();
+    } else {
+      // Turn audio OFF
+      localAudioTrackRef.current?.stop();
+      localAudioTrackRef.current = null;
+      setLocalAudioTrack(null);
+    }
+  }, [audioOn]);
+
+  useEffect(() => {
+    if (isFirstVideoRun.current) {
+      isFirstVideoRun.current = false;
+      return;
+    }
+
+    if (videoOn) {
+      // Turn video ON
+      (async () => {
+        try {
+          const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          const videoTrack = videoStream.getVideoTracks()[0] || null;
+          localVideoTrackRef.current = videoTrack;
+          setLocalVideoTrack(videoTrack);
+          if (videoRef.current) {
+            videoRef.current.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
+            if (videoTrack) await videoRef.current.play().catch(() => {});
+          }
+        } catch (err) {
+          console.warn("Camera access denied or unavailable:", err);
+          toast.error("Camera Error", { description: "Could not access camera" });
+          setVideoOn(false); // Revert state
+        }
+      })();
+    } else {
+      // Turn video OFF
+      localVideoTrackRef.current?.stop();
+      localVideoTrackRef.current = null;
+      setLocalVideoTrack(null);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    }
+  }, [videoOn]);
+
   if (joined) {
     const handleOnLeave = () => {
       setJoined(false);
@@ -137,7 +202,6 @@ useEffect(() => {
 
         {/* Main content grid */}
         <div className="grid lg:grid-cols-2 gap-8 items-stretch">
-          
           {/* Left Side - Video Preview */}
           <div className="space-y-4 h-full flex flex-col">
             {/* Video preview container - rounded */}
@@ -156,7 +220,7 @@ useEffect(() => {
                     <IconUser className="h-16 w-16 text-white/70" />
                   </div>
                 )}
-                
+
                 {/* Status indicators */}
                 <div className="absolute bottom-3 left-3 flex items-center gap-2">
                   <div className="rounded-md bg-black/60 px-2 py-1 text-xs text-white">
@@ -181,7 +245,11 @@ useEffect(() => {
                     audioOn ? "bg-white/10 hover:bg-white/20" : "bg-red-600 hover:bg-red-500"
                   }`}
                 >
-                  {audioOn ? <IconMicrophone className="h-5 w-5 text-white" /> : <IconMicrophoneOff className="h-5 w-5 text-white" />}
+                  {audioOn ? (
+                    <IconMicrophone className="h-5 w-5 text-white" />
+                  ) : (
+                    <IconMicrophoneOff className="h-5 w-5 text-white" />
+                  )}
                 </button>
               </Tooltip>
 
@@ -213,7 +281,7 @@ useEffect(() => {
               <div className="space-y-6">
                 <div className="flex flex-col gap-4">
                   <h2 className="text-2xl font-semibold text-white">Join the conversation</h2>
-                  
+
                   <div className="flex flex-col gap-1">
                     <label className="block text-sm font-medium text-gray-300">
                       What should we call you?
@@ -225,14 +293,14 @@ useEffect(() => {
                       placeholder="Enter your name"
                       className="w-full h-12 px-4 rounded-xl border border-white/10 bg-neutral-800/50 text-white placeholder-neutral-500 focus:border-white/30 focus:outline-none transition-colors backdrop-blur"
                     />
-                    </div>
-                    <button
-                      onClick={() => setJoined(true)}
-                      disabled={!name.trim()}
-                      className="cursor-pointer w-full h-12 bg-white text-black rounded-xl font-medium hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 disabled:hover:bg-white"
-                    >
-                      Join Meeting
-                    </button>
+                  </div>
+                  <button
+                    onClick={() => setJoined(true)}
+                    disabled={!name.trim()}
+                    className="cursor-pointer w-full h-12 bg-white text-black rounded-xl font-medium hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 disabled:hover:bg-white"
+                  >
+                    Join Meeting
+                  </button>
 
                   <p className="text-xs text-neutral-500 text-center">
                     By joining, you agree to our terms of service and privacy policy
@@ -246,3 +314,4 @@ useEffect(() => {
     </div>
   );
 }
+
