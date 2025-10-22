@@ -19,6 +19,8 @@ import Tooltip from "../ui/tooltip";
 interface ControlBarProps {
   mediaState: MediaState;
   showChat: boolean;
+  isReporting?: boolean;
+  roomId?: string | null;
   onToggleMic: () => void;
   onToggleCam: () => void;
   onToggleScreenShare: () => void;
@@ -32,6 +34,8 @@ interface ControlBarProps {
 export default function ControlBar({
   mediaState,
   showChat,
+  isReporting = false,
+  roomId = null,
   onToggleMic,
   onToggleCam,
   onToggleScreenShare,
@@ -124,12 +128,27 @@ export default function ControlBar({
               </button>
             </Tooltip>
             
-            <Tooltip content="Report user">
+            <Tooltip content={
+              !roomId ? "Not connected to a room" : 
+              isReporting ? "Submitting report..." : 
+              "Report user"
+            }>
               <button
                 onClick={onReport}
-                className="cursor-pointer h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                disabled={isReporting || !roomId}
+                className={`cursor-pointer h-11 w-11 rounded-full flex items-center justify-center transition ${
+                  isReporting 
+                    ? "bg-orange-600/80 cursor-not-allowed" 
+                    : !roomId
+                    ? "bg-gray-600/50 cursor-not-allowed"
+                    : "bg-white/10 hover:bg-white/20"
+                }`}
               >
-                <IconFlag className="h-5 w-5" />
+                {isReporting ? (
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <IconFlag className="h-5 w-5" />
+                )}
               </button>
             </Tooltip>
           </div>
