@@ -89,6 +89,31 @@ export class UserManager {
     return this.roomOf.get(socketId);
   }
 
+  /** Is the user currently online (connected)? */
+  isOnline(socketId: string): boolean {
+    return this.online.has(socketId);
+  }
+
+  /** Get current partner socket id (if any). */
+  getPartner(socketId: string): string | undefined {
+    return this.partnerOf.get(socketId);
+  }
+
+  /** Quick check: are two users in the same active room (optionally matching a given roomId)? */
+  areInSameRoom(a: string, b: string, roomId?: string): boolean {
+    const ra = this.roomOf.get(a);
+    const rb = this.roomOf.get(b);
+    if (!ra || !rb) return false;
+    if (roomId && ra.toString() !== roomId.toString()) return false;
+    return ra === rb;
+  }
+
+  /** Get minimal meta for a user (ip, ua, etc.) */
+  getMeta(socketId: string): Record<string, unknown> | undefined {
+    const u = this.users.find((x) => x.socket.id === socketId);
+    return u?.meta as Record<string, unknown> | undefined;
+  }
+
   /** Get user's display name quickly. */
   getName(socketId: string): string | undefined {
     const u = this.users.find((x) => x.socket.id === socketId);
