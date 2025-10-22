@@ -1,21 +1,29 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button"; // adjust the import path if your shadcn Button is in a different place
 
 export default function PrejoinHome() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-      <h1 className="text-5xl font-extrabold mb-6 drop-shadow-lg">Welcome to Helixque</h1>
-      <p className="mb-8 max-w-md text-center text-lg drop-shadow-md">
-        Your professional networking video platform. Connect, chat, and build meaningful relationships.
-      </p>
-      <button
-        onClick={() => router.push("/prejoin/username")}
-        className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-lg shadow-lg hover:bg-blue-50 transition"
-      >
-        Get Started
-      </button>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white p-6">
+      <div className="w-full max-w-sm mx-auto">
+        <h1 className="text-4xl font-bold mb-6 text-center">Welcome to Helixque</h1>
+        <p className="mb-8 text-center text-base text-neutral-300">
+          Your professional networking video platform.<br />Connect, chat, and build meaningful relationships.
+        </p>
+<div className="flex justify-center mt-8">
+  <Button
+    variant="outline"
+    className="font-semibold border-2 border-white transition-colors hover:bg-white hover:text-black hover:border-white cursor-pointer"
+    onClick={() => router.push("/prejoin/username")}
+  >
+    Get Started
+  </Button>
+</div>
+
+      </div>
     </div>
   );
 }
+

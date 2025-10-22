@@ -8,7 +8,6 @@ export default function RoomPage({ params }: any) {
   const router = useRouter();
 
   useEffect(() => {
-    // If params is a promise, unwrap it
     if (typeof params?.then === "function") {
       params.then((resolved: any) => setRoomId(resolved.roomId));
     } else {
@@ -33,12 +32,14 @@ export default function RoomPage({ params }: any) {
   }, [roomId, router]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold mb-4">Joining room...</h1>
-        <p className="text-gray-400">Redirecting to device setup...</p>
+    <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-black text-white">
+      <div className="w-full max-w-md bg-black rounded-2xl shadow-xl p-8 text-center">
+        <h1 className="text-3xl font-semibold mb-6">Joining room...</h1>
+        <p className="text-white/70">Redirecting to device setup...</p>
       </div>
     </div>
   );
 }
+
+
 
