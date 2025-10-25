@@ -2,6 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { toast } from "sonner";
+import type { EmojiClickData} from "emoji-picker-react"
+import EmojiPicker, {Theme} from "emoji-picker-react";
+import { RiEmojiStickerLine } from 'react-icons/ri'
 
 type ChatMessage = {
   text: string;
@@ -37,6 +40,31 @@ export default function ChatPanel({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidRef = useRef<string | null>(mySocketId ?? null);
+  const emojiRef=useRef<HTMLDivElement>(null)
+  const inputRef=useRef<HTMLInputElement>(null)
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState<boolean>(false);
+  const [cursorPosition, setCursorPosition] = useState<number>(0);
+  const didJoinRef = useRef<Record<string, string>>({});
+
+    useEffect(()=>{
+  function handleClickOutside(event:MouseEvent){
+    if(emojiRef.current && !emojiRef.current.contains(event.target as Node)){
+      // Only proceed if the picker is currently open
+      if(emojiPickerOpen) {
+        setEmojiPickerOpen(false);
+        setTimeout(() => {
+          if(inputRef.current){
+            inputRef.current.focus();
+          }
+        }, 5);
+      }
+    }
+  }
+  document.addEventListener("mousedown",handleClickOutside);
+  return ()=>{
+    document.removeEventListener("mousedown",handleClickOutside)         
+  }
+}, [emojiPickerOpen]); // Add dependency here
 
   // derive & keep socket.id fresh for self-dedupe
   useEffect(() => {
@@ -52,7 +80,7 @@ export default function ChatPanel({
   }, [socket]);
 
   const canSend = !!socket && socket.connected && !!roomId && !!name && !!(sidRef.current || mySocketId);
-
+  
   // Dismiss existing toasts when chat window opens
   useEffect(() => {
     if (isOpen) {
@@ -73,11 +101,18 @@ export default function ChatPanel({
     if (!socket || !roomId) return;
 
     const join = () => socket.emit("chat:join", { roomId, name });
-    join(); // initial
+    const joinOnce = () => {
+      const sid = socket.id ?? null;
+      const key = `${roomId}`;
+      if (sid && didJoinRef.current[key] === sid) return; // already joined for this room with this socket id
+      if (sid) didJoinRef.current[key] = sid;
+      join();
+    };
+    // initial join will be emitted after listeners are attached
     const onConnect = () => {
       // re-join on reconnect
       sidRef.current = socket.id ?? null;
-      join();
+      joinOnce();
     };
 
     const onMsg = (m: ChatMessage) => {
@@ -91,9 +126,9 @@ export default function ChatPanel({
         try {
           // Only show toast if chat window is closed
           if (!isOpen) {
-            // subtle toast at bottom-right when receiving a new message
+            // Hide actual username in notification for privacy - always show "Peer"
             toast.success(
-              `${m.from}: ${m.text.length > 80 ? m.text.slice(0, 77) + '...' : m.text}`,
+              `Peer: ${m.text.length > 80 ? m.text.slice(0, 77) + '...' : m.text}`,
               { 
                 duration: 3500,
                 position: 'bottom-right',
@@ -108,10 +143,29 @@ export default function ChatPanel({
     };
 
     const onSystem = (m: { text: string; ts?: number }) => {
+      // normalize system text: keep my own name, anonymize peers as "peer"
+      const normalize = (txt: string) => {
+        try {
+          const re = /^(.*)\s+(joined|left) the chat.*$/;
+          const match = txt.match(re);
+          if (match) {
+            const who = (match[1] || "").trim();
+            const action = match[2];
+            const isSelf = who.length > 0 && who.toLowerCase() === (name || "").toLowerCase();
+            return `${isSelf ? name : "Peer"} ${action} the chat`;
+          }
+        } catch {}
+        return txt;
+      };
+      const text = normalize(m.text);
+
       setMessages((prev) => {
+        // simple de-dupe: if last system message has identical text, skip
+        const last = prev[prev.length - 1];
+        if (last?.kind === "system" && last.text === text) return prev;
         const next = [
           ...prev,
-          { text: m.text, from: "system", clientId: "system", ts: m.ts ?? Date.now(), kind: "system" as const },
+          { text, from: "system", clientId: "system", ts: m.ts ?? Date.now(), kind: "system" as const },
         ];
         return next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next;
       });
@@ -125,29 +179,53 @@ export default function ChatPanel({
       }
     };
 
-    const onPartnerLeft = ({ reason }: { reason: string }) => {
-      onSystem({ text: `Your partner left (${reason}).` });
+
+    // Handler for when partner leaves the chat
+    // const onPartnerLeft = ({ reason }: { reason: string }) => {
+    //   console.log("👋 PARTNER LEFT - Chat event received with reason:", reason);
+    //   onSystem({ text: `Your partner left (${reason}).` });
+    // };
+
+    // Server-sent history: merge with current messages and de-dupe
+    const onHistory = (payload: { roomId: string; messages: ChatMessage[] }) => {
+      if (!payload || payload.roomId !== roomId) return;
+      const incoming = Array.isArray(payload.messages) ? payload.messages : [];
+      if (incoming.length === 0) return;
+      setMessages((prev) => {
+        const keyOf = (x: ChatMessage) => `${x.kind || 'user'}|${x.ts}|${x.clientId}|${x.text}`;
+        const seen = new Set(prev.map(keyOf));
+        const add = incoming.filter((m) => !seen.has(keyOf(m)));
+        if (add.length === 0) return prev;
+        const merged = [...prev, ...add];
+        return merged.length > MAX_BUFFER ? merged.slice(-MAX_BUFFER) : merged;
+      });
     };
 
     socket.on("connect", onConnect);
     socket.on("chat:message", onMsg);
     socket.on("chat:system", onSystem);
     socket.on("chat:typing", onTyping);
-    socket.on("partner:left", onPartnerLeft);
+    socket.on("chat:history", onHistory);
+    // socket.on("partner:left", onPartnerLeft);
 
-    // optional: clear chat when switching rooms
-    setMessages([]);
+    // perform initial join only once per socket.id+room
+    if (socket.connected) {
+      onConnect();
+    }
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("chat:message", onMsg);
       socket.off("chat:system", onSystem);
       socket.off("chat:typing", onTyping);
-      socket.off("partner:left", onPartnerLeft);
+      socket.off("chat:history", onHistory);
+      // socket.off("partner:left", onPartnerLeft);
       // stop typing when leaving room/unmounting
       socket.emit("chat:typing", { roomId, from: name, typing: false });
+      // announce leaving the chat room
+      socket.emit("chat:leave", { roomId, name });
     };
-  }, [socket, roomId, name, mySocketId]);
+  }, [socket, roomId]);
 
   const sendMessage = () => {
     if (!canSend || !input.trim()) return;
@@ -173,8 +251,30 @@ export default function ChatPanel({
     socket!.emit("chat:typing", { roomId, from: name, typing: false });
   };
 
+  const handleAddEmoji=(emoji:EmojiClickData)=>{
+       const start = cursorPosition;  
+       const newMsg = input.slice(0, start) + emoji.emoji + input.slice(start);
+       setInput(newMsg);
+       
+       const newCursorPos = start + emoji.emoji.length;
+       setCursorPosition(newCursorPos);
+
+
+          if (!socket || !roomId) return;
+             if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+              typingDebounceRef.current = setTimeout(() => {
+      socket.emit("chat:typing", { roomId, from: name, typing: !!newMsg });
+    }, TYPING_DEBOUNCE);
+        
+        
+    }
+
   const handleTyping = (value: string) => {
     setInput(value);
+
+    if(inputRef.current){
+      setCursorPosition(inputRef.current.selectionStart || value.length)
+    }
     if (!socket || !roomId) return;
 
     if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
@@ -221,17 +321,30 @@ export default function ChatPanel({
 
       <div className="p-3 border-t border-white/10">
         <div className="flex items-center gap-2">
+            <div className="relative w-full flex-1">
           <input
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/60"
+            ref={inputRef}
+            className=" bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/60 w-full"
             placeholder={canSend ? "Type a message…" : "Connecting chat…"}
             value={input}
             onChange={(e) => handleTyping(e.target.value)}
+            onClick={(e)=>setCursorPosition(e.currentTarget.selectionStart||input.length)}
+            onKeyUp={(e) => setCursorPosition(e.currentTarget.selectionStart || input.length)}
             onKeyDown={(e) => {
               if (e.key === "Enter") sendMessage();
             }}
             disabled={!canSend}
             maxLength={MAX_LEN}
-          />
+          /> 
+         <div className="absolute right-2 bottom-0 ">
+          <button onClick={(e)=>{e.stopPropagation();if(canSend)setEmojiPickerOpen(true)}} className={`${canSend ? ' hover:text-white focus:text-white ' : '' } text-neutral-500 focus:border-none focus:outline-none duration-300 transition-all`} aria-label="Open emoji picker">
+            <RiEmojiStickerLine size={24}/>
+          </button>
+          <div className='absolute bottom-16 right-0' ref={emojiRef}>
+            <EmojiPicker theme={Theme.DARK} open={emojiPickerOpen} onEmojiClick={handleAddEmoji} autoFocusSearch={false}/>
+          </div>
+        </div>
+</div>
           <button
             onClick={sendMessage}
             disabled={!canSend || !input.trim()}

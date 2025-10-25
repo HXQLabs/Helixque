@@ -2,13 +2,14 @@ import http from "http";
 import express from "express";
 import { Server, Socket } from "socket.io";
 
-import { UserManager } from "./managers/UserManger"; // keep your current path
+import { UserManager } from "./managers/UserManger"; // corrected spelling
 // import { pubClient, subClient } from "./cache/redis";
 // import { presenceUp, presenceHeartbeat, presenceDown, countOnline } from "./cache/presence";
 // import { createAdapter } from "@socket.io/redis-adapter";
 
-// ⬇️ NEW: import your chat wiring/util
-import { wireChat, joinChatRoom } from "./chat/chat";
+import { wireChat /*, joinChatRoom */ } from "./chat/chat"; // keep wiring util
+
+import type { HandshakeAuth, HandshakeQuery, ChatJoinPayload } from "./type";
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +20,9 @@ const lastMediaState = new Map<string, { micOn?: boolean; camOn?: boolean }>();
 // io.adapter(createAdapter(pubClient, subClient));
 
 const userManager = new UserManager();
+
+// Set the io instance for UserManager after creation
+userManager.setIo(io);
 
 // Health endpoint
 app.get("/healthz", async (_req, res) => {
@@ -32,139 +36,128 @@ app.get("/healthz", async (_req, res) => {
 });
 
 const HEARTBEAT_MS = Number(process.env.SOCKET_HEARTBEAT_MS || 30_000);
-const heartbeats = new Map<string, ReturnType<typeof setInterval>>();
+const heartbeats = new Map<string, NodeJS.Timeout>();
 
 io.on("connection", (socket: Socket) => {
-  console.log(`[io] connected ${socket.id}`);
+  // console.log(`[io] connected ${socket.id}`);
 
   // Derive meta
   const meta = {
-    name: (socket.handshake.auth?.name as string) || "guest",
-    ip: (socket.handshake.address as string) || null,
+    name: (socket.handshake.auth as HandshakeAuth)?.name || "guest",
+    ip: socket.handshake.address || null,
     ua: (socket.handshake.headers["user-agent"] as string) || null,
   };
 
   // Presence (disabled Redis for now)
-  // presenceUp(socket.id, meta).catch((e) => console.warn("[presenceUp]", e.message));
+  // presenceUp(socket.id, meta).catch((e) => console.warn("[presenceUp]", e?.message));
+
   const hb = setInterval(() => {
-    // presenceHeartbeat(socket.id).catch((e) => console.warn("[presenceHeartbeat]", e.message));
+    // presenceHeartbeat(socket.id).catch((e) => console.warn("[presenceHeartbeat]", e?.message));
   }, HEARTBEAT_MS);
   heartbeats.set(socket.id, hb);
 
   // Track user
   userManager.addUser(meta.name, socket, meta);
 
-  // ⬇️ Hook up chat listeners (chat:join, chat:message, chat:typing)
+  // Hook up chat listeners (chat:join, chat:message, chat:typing)
   wireChat(io, socket);
 
-  // ⬇️ Auto-join a chat room if the client provided it (no matchmaking).
-  //    Supports either `io(..., { auth: { roomId }})` or `?roomId=...`
-  const roomFromAuth = (socket.handshake.auth?.roomId as string) || "";
-  const roomFromQuery = (socket.handshake.query?.roomId as string) || "";
-  const initialRoomId = (roomFromAuth || roomFromQuery || "").toString().trim();
+  // Auto-join a chat room if the client provided it (supports auth or query)
+  // Normalize to using `chat:<roomId>` as the room namespace everywhere
+  const roomFromAuth = (socket.handshake.auth as HandshakeAuth)?.roomId;
+  const roomFromQuery = (socket.handshake.query as HandshakeQuery)?.roomId;
+  const initialRoomRaw = (roomFromAuth || roomFromQuery || "").toString().trim();
+  const normalizeRoom = (r: string) => (r ? `chat:${r}` : "");
 
+  const initialRoomId = normalizeRoom(initialRoomRaw);
+  // Do not auto-join here; let chat.ts handle joining and announcements to avoid duplicates
   if (initialRoomId) {
-    joinChatRoom(socket, initialRoomId, meta.name);
     userManager.setRoom(socket.id, initialRoomId);
-    socket.join(initialRoomId); // <-- so socket.to(roomId) works
   }
 
   // ⬇️ Keep UserManager in sync when client explicitly joins later
-  socket.on("chat:join", async ({ roomId, name }: { roomId: string; name?: string }) => {
+  socket.on("chat:join", ({ roomId }: { roomId: string; name?: string }) => {
     if (roomId) userManager.setRoom(socket.id, roomId);
-    if (roomId) {
-      await socket.join(roomId);
-      // Immediately send the latest known media state of existing peers in the room
-      try {
-        const peers = await io.in(roomId).fetchSockets();
-        for (const p of peers) {
-          if (p.id === socket.id) continue;
-          const st = lastMediaState.get(p.id);
-          if (st) {
-            socket.emit("peer:media-state", { state: st, from: p.id });
-          }
-        }
-      } catch (err) {
-        // ignore fetch/send errors
-      }
-    }
+    if (roomId) socket.join(roomId);
   });
 
-  // Screen share state and track management
-  socket.on("screen:state", ({ roomId, on }) => {
-    socket.to(roomId).emit("screen:state", { on });
-  });
-  
+  // Screen share + media + renegotiation handlers (same behavior, use namespaced rooms)
+  const toRoom = (roomId?: string) => (roomId ? `chat:${roomId}` : undefined);
 
-  // Screen share track renegotiation events
+  socket.on("screen:state", ({ roomId, on }: { roomId: string; on: boolean }) => {
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("screen:state", { on, from: socket.id });
+  });
+
   socket.on("screenshare:offer", ({ roomId, sdp }) => {
-    socket.to(roomId).emit("screenshare:offer", { sdp, from: socket.id });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("screenshare:offer", { sdp, from: socket.id });
   });
 
   socket.on("screenshare:answer", ({ roomId, sdp }) => {
-    socket.to(roomId).emit("screenshare:answer", { sdp, from: socket.id });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("screenshare:answer", { sdp, from: socket.id });
   });
 
   socket.on("screenshare:ice-candidate", ({ roomId, candidate }) => {
-    socket.to(roomId).emit("screenshare:ice-candidate", { candidate, from: socket.id });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("screenshare:ice-candidate", { candidate, from: socket.id });
   });
 
-  // Screen share track start/stop notifications
   socket.on("screenshare:track-start", ({ roomId }) => {
-    socket.to(roomId).emit("screenshare:track-start", { from: socket.id });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("screenshare:track-start", { from: socket.id });
   });
 
   socket.on("screenshare:track-stop", ({ roomId }) => {
-    socket.to(roomId).emit("screenshare:track-stop", { from: socket.id });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("screenshare:track-stop", { from: socket.id });
   });
 
-  // --- Media state (aggregated) ---
+  // Media state
   socket.on("media:state", ({ roomId, state }: { roomId: string; state: { micOn?: boolean; camOn?: boolean } }) => {
-    // persist latest for this socket
-    lastMediaState.set(socket.id, state);
-    // forward to other peers in the room
-    socket.to(roomId).emit("peer:media-state", { state, from: socket.id });
+    socket.to(roomId).emit("peer:media-state", { state });
   });
 
-  // Legacy single toggles (optional; still supported)
-  socket.on("media:cam", ({ roomId, on }) => {
-    socket.to(roomId).emit("media:cam", { on });
-  });
-  socket.on("media:mic", ({ roomId, on }) => {
-    socket.to(roomId).emit("media:mic", { on });
+  socket.on("media:cam", ({ roomId, on }: { roomId: string; on: boolean }) => {
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("media:cam", { on, from: socket.id });
   });
 
-  // (Optional) Back-compat aliases if you ever used these names:
+  socket.on("media:mic", ({ roomId, on }: { roomId: string; on: boolean }) => {
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("media:mic", { on, from: socket.id });
+  });
+
+  // Backwards-compat aliases
   socket.on("state:update", ({ roomId, micOn, camOn }) => {
-    socket.to(roomId).emit("peer:state", { micOn, camOn });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("peer:state", { micOn, camOn, from: socket.id });
   });
 
-  // Renegotiation passthrough (your existing)
+  // Renegotiation passthrough
   socket.on("renegotiate-offer", ({ roomId, sdp, role }) => {
-    socket.to(roomId).emit("renegotiate-offer", { sdp, role });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("renegotiate-offer", { sdp, role, from: socket.id });
   });
 
   socket.on("renegotiate-answer", ({ roomId, sdp, role }) => {
-    socket.to(roomId).emit("renegotiate-answer", { sdp, role });
+    const r = toRoom(roomId);
+    if (r) socket.to(r).emit("renegotiate-answer", { sdp, role, from: socket.id });
   });
 
   socket.on("disconnect", (reason) => {
-    console.log(`[io] disconnected ${socket.id} (${reason})`);
+    // console.log(`[io] disconnected ${socket.id} (${reason})`);
 
-    clearInterval(heartbeats.get(socket.id)!);
-    heartbeats.delete(socket.id);
-
-    // presence down (disabled Redis)
-    // presenceDown(socket.id).catch((e) => console.warn("[presenceDown]", e.message));
-
-    // Optional: announce "left" to current room (mirrors joinChatRoom)
-    const u = userManager.getUser(socket.id);
-    if (u?.roomId) {
-      socket.nsp.in(`chat:${u.roomId}`).emit("chat:system", {
-        text: `${u.name} left the chat`,
-        ts: Date.now(),
-      });
+    const hbRef = heartbeats.get(socket.id);
+    if (hbRef) {
+      clearInterval(hbRef);
+      heartbeats.delete(socket.id);
     }
+
+    // presenceDown(socket.id).catch((e) => console.warn("[presenceDown]", e?.message));
+
+    // chat.ts handles leave announcements in its disconnecting handler
 
     // cleanup stored media state
     lastMediaState.delete(socket.id);
@@ -174,5 +167,36 @@ io.on("connection", (socket: Socket) => {
   socket.on("error", (err) => console.warn(`[io] socket error ${socket.id}:`, err));
 });
 
+// --- Routes already defined above ---
+
+// 404 handler (must be AFTER routes)
+app.use((_req: express.Request, res: express.Response) => {
+  res.status(404).send("Routes Not Found");
+});
+
+// Global error handler (must be LAST)
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Respect err.status and err.message if present
+  const status = err?.status || 500;
+  const message = err?.message || "Internal Server Error";
+
+  console.error("Unhandled error:", err?.stack || err);
+  res.status(status).json({ message });
+});
+
+// Graceful shutdown
 const PORT = Number(process.env.PORT || 5001);
 server.listen(PORT, () => console.log(`listening on *:${PORT}`));
+
+const shutdown = (signal: string) => {
+  console.log(`Received ${signal}. Shutting down gracefully...`);
+  server.close(() => {
+    console.log("HTTP server closed.");
+    // cleanup: clear all heartbeats
+    heartbeats.forEach((hb) => clearInterval(hb));
+    process.exit(0);
+  });
+};
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

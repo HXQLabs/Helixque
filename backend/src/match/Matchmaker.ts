@@ -2,16 +2,19 @@ import type { Redis } from "ioredis";
 
 type UserMeta = {
   id: string; // socket.id
-  language: string;
-  industry: string;
-  skillBucket: string;
+  language?: string;
+  industry?: string;
+  skillBucket?: string;
 };
 
 export class Matchmaker {
   constructor(private redis: Redis) {}
 
   private shardKey(meta: UserMeta) {
-    return `Q:${meta.language}:${meta.industry}:${meta.skillBucket}`;
+    const language = meta.language || 'any';
+    const industry = meta.industry || 'any';
+    const skillBucket = meta.skillBucket || 'any';
+    return `Q:${language}:${industry}:${skillBucket}`;
   }
   private langKey(lang: string) { return `QL:${lang}`; }
   private indKey(ind: string) { return `QI:${ind}`; }
@@ -76,8 +79,8 @@ export class Matchmaker {
     const primary = this.shardKey(meta);
     const fallbacks: string[] = [
       primary,
-      this.langKey(meta.language),
-      this.indKey(meta.industry),
+      ...(meta.language ? [this.langKey(meta.language)] : []),
+      ...(meta.industry ? [this.indKey(meta.industry)] : []),
       this.globalKey(),
     ];
 
@@ -98,8 +101,12 @@ export class Matchmaker {
 
     // No partner found; push to queues (primary + light secondary)
     await this.redis.lpush(primary, meta.id);
-    await this.redis.lpush(this.langKey(meta.language), meta.id);
-    await this.redis.lpush(this.indKey(meta.industry), meta.id);
+    if (meta.language) {
+      await this.redis.lpush(this.langKey(meta.language), meta.id);
+    }
+    if (meta.industry) {
+      await this.redis.lpush(this.indKey(meta.industry), meta.id);
+    }
     await this.redis.lpush(this.globalKey(), meta.id);
     return null;
   }

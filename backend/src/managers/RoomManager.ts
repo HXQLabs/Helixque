@@ -1,4 +1,4 @@
-import { User } from "./UserManger"; // keep your import name as-is
+import { User } from "../type";
 
 let GLOBAL_ROOM_ID = 1;
 
@@ -33,7 +33,7 @@ export class RoomManager {
         const receivingUser = room.user1.socket.id === senderSocketid ? room.user2 : room.user1;
         receivingUser?.socket.emit("offer", { sdp, roomId });
     }
-    
+
     onAnswer(roomId: string, sdp: string, senderSocketid: string) {
         const room = this.rooms.get(roomId);
         if (!room) return;
@@ -53,21 +53,24 @@ export class RoomManager {
     // NEW: teardown helpers for robust leave/next flows
     teardownUser(roomId: string, userId: string) {
         const room = this.rooms.get(roomId);
-        if (!room) return;
+        if (!room) {
+          return;
+        }
 
         const other = room.user1.socket.id === userId ? room.user2 : room.user1;
         // Notify other side that this room is done (front-end can stop peer connection)
-        other.socket.emit("partner:left", { reason: "room-teardown" });
+        // Removed duplicate notification - handled in UserManager.handleLeave
         this.rooms.delete(roomId);
     }
 
     teardownRoom(roomId: string) {
         const room = this.rooms.get(roomId);
-        if (!room) return;
+        if (!room) {
+          return;
+        }
 
         // Optionally notify both sides (guard if sockets are still connected)
-        try { room.user1.socket.emit("partner:left", { reason: "room-teardown" }); } catch {}
-        try { room.user2.socket.emit("partner:left", { reason: "room-teardown" }); } catch {}
+        // Removed duplicate notifications - handled in UserManager.handleLeave
         this.rooms.delete(roomId);
     }
 

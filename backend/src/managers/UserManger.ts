@@ -1,14 +1,8 @@
-import { Socket } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { RoomManager } from "./RoomManager";
+import { User } from "../type";
 
 const QUEUE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
-export interface User {
-  socket: Socket;
-  name: string;
-  meta?: Record<string, unknown>; // optional, for diagnostics
-  joinedAt?: number;
-}
 
 export class UserManager {
   private users: User[];
@@ -24,8 +18,9 @@ export class UserManager {
   private timeoutIntervals: Map<string, NodeJS.Timeout>;
 
   private roomManager: RoomManager;
+  private io: Server | null = null;
 
-  constructor() {
+  constructor(io?: Server) {
     this.users = [];
     this.queue = [];
     this.roomManager = new RoomManager();
@@ -36,6 +31,15 @@ export class UserManager {
     this.roomOf = new Map();
     this.queueEntryTime = new Map();
     this.timeoutIntervals = new Map();
+    
+    if (io) {
+      this.io = io;
+    }
+  }
+
+  // Method to set the io instance after construction
+  setIo(io: Server) {
+    this.io = io;
   }
 
   // accepts optional meta; safe to call as addUser(name, socket)
@@ -108,13 +112,13 @@ export class UserManager {
   private startQueueTimeout(socketId: string) {
     console.log(`[TIMEOUT] Starting timeout for socket: ${socketId}, timeout: ${QUEUE_TIMEOUT_MS}ms`);
     this.clearQueueTimeout(socketId);
-    
+
     this.queueEntryTime.set(socketId, Date.now());
-    
+
     const timeout = setTimeout(() => {
       this.handleQueueTimeout(socketId);
     }, QUEUE_TIMEOUT_MS);
-    
+
     this.timeoutIntervals.set(socketId, timeout);
   }
 
@@ -131,10 +135,10 @@ export class UserManager {
     console.log(`[TIMEOUT] Handling timeout for socket: ${socketId}`);
     const user = this.users.find(u => u.socket.id === socketId);
     if (!user || !this.online.has(socketId) || !this.queue.includes(socketId)) {
-      console.log(`[TIMEOUT] User not found, offline, or not in queue:`, { 
-        user: !!user, 
-        online: this.online.has(socketId), 
-        inQueue: this.queue.includes(socketId) 
+      console.log(`[TIMEOUT] User not found, offline, or not in queue:`, {
+        user: !!user,
+        online: this.online.has(socketId),
+        inQueue: this.queue.includes(socketId)
       });
       return;
     }
@@ -149,7 +153,7 @@ export class UserManager {
     } catch (error) {
       console.error("Failed to emit queue:timeout:", error);
     }
-    
+
     this.queue = this.queue.filter(id => id !== socketId);
     this.clearQueueTimeout(socketId);
   }
@@ -277,7 +281,19 @@ export class UserManager {
       return;
     }
 
-    // Ban both
+    // Get room ID to send system message BEFORE teardown
+    const roomId = this.roomOf.get(userId);
+    
+    // Send system message that peer left the chat BEFORE teardown to ensure users are still in the chat room
+    if (roomId && this.io) {
+      const chatRoom = `chat:${roomId}`;
+      this.io.to(chatRoom).emit("chat:system", { 
+        text: "Peer left the chat", 
+        ts: Date.now() 
+      });
+    }
+    
+    // Ban both users from matching with each other again
     const bansU = this.bans.get(userId) || new Set<string>();
     const bansP = this.bans.get(partnerId) || new Set<string>();
     bansU.add(partnerId);
@@ -285,10 +301,8 @@ export class UserManager {
     this.bans.set(userId, bansU);
     this.bans.set(partnerId, bansP);
 
-    // Teardown room links
-    const roomIdU = this.roomOf.get(userId);
-    if (roomIdU) this.roomManager.teardownRoom(roomIdU);
-
+    // Teardown room and clear mappings
+    if (roomId) this.roomManager.teardownRoom(roomId);
     this.partnerOf.delete(userId);
     this.partnerOf.delete(partnerId);
     this.roomOf.delete(userId);
@@ -299,7 +313,7 @@ export class UserManager {
     const partnerUser = this.users.find((u) => u.socket.id === partnerId);
     if (partnerUser && this.online.has(partnerId)) {
       partnerUser.socket.emit("partner:left", { reason: "next" });
-      // Optional: also requeue partner automatically
+      // Also requeue partner automatically
       if (!this.queue.includes(partnerId)) this.queue.push(partnerId);
     }
 

@@ -4,6 +4,11 @@ Thank you for your interest in contributing to Helixque! This document provides 
 
 ---
 
+> \[!IMPORTANT]  
+> - If an issue is assigned to you, please complete it **before requesting another one**.  
+> - A person can be assigned a **maximum of two issues** at a time to ensure fair distribution among all participants.
+
+
 ## ⭐ Before You Start
 
 1. **Starring the repository is mandatory** before contributing.  
@@ -17,8 +22,6 @@ Thank you for your interest in contributing to Helixque! This document provides 
 3. **Pull Request Policy on Discord**  
    - Before raising a PR, **check the `#pull-request` channel** to ensure there isn’t already an open PR for the same issue.  
    - If no one is working on it, go ahead and raise your PR and mention it in the channel.
-  
-4. **sign up in helixque https://helixque.netlify.app/**
 
 ---
 
