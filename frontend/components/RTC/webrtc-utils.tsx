@@ -117,6 +117,8 @@ export function stopProvidedTracks(
 
 export function teardownPeers(
   reason: string,
+  camOn: boolean,
+  micOn: boolean,
   sendingPcRef: React.RefObject<RTCPeerConnection | null>,
   receivingPcRef: React.RefObject<RTCPeerConnection | null>,
   remoteStreamRef: React.RefObject<MediaStream | null>,
@@ -206,8 +208,8 @@ export function teardownPeers(
 
   // Reset UI states
   setters.setShowChat(false);
-  // setters.setPeerMicOn(true);
-  // setters.setPeerCamOn(true);
+  setters.setPeerMicOn(micOn);
+  setters.setPeerCamOn(camOn);
   setters.setScreenShareOn(false);
   setters.setPeerScreenShareOn(false);
 
