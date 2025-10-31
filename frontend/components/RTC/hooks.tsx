@@ -35,6 +35,8 @@ export function useRoomState() {
   const [status, setStatus] = useState<string>("Waiting to connect you to someone…");
   const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
   const [timeoutMessage, setTimeoutMessage] = useState("");
+  const [isReporting, setIsReporting] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   return {
     showChat, setShowChat,
@@ -43,6 +45,8 @@ export function useRoomState() {
     lobby, setLobby,
     status, setStatus,
     showTimeoutAlert, setShowTimeoutAlert,
-    timeoutMessage, setTimeoutMessage
+    timeoutMessage, setTimeoutMessage,
+    isReporting, setIsReporting,
+    showReportModal, setShowReportModal
   };
 }

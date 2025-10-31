@@ -8,6 +8,7 @@ import ChatPanel from "./Chat/chat"; // ← adjust path if different
 import VideoGrid from "./VideoGrid";
 import ControlBar from "./ControlBar";
 import TimeoutAlert from "./TimeoutAlert";
+import ReportModal from "./ReportModal";
 import { useMediaState, usePeerState, useRoomState } from "./hooks";
 import { 
   ensureRemoteStream, 
@@ -48,7 +49,8 @@ export default function Room({
   const { 
     showChat, setShowChat, roomId, setRoomId, mySocketId, setMySocketId,
     lobby, setLobby, status, setStatus, showTimeoutAlert, setShowTimeoutAlert,
-    timeoutMessage, setTimeoutMessage 
+    timeoutMessage, setTimeoutMessage, isReporting, setIsReporting,
+    showReportModal, setShowReportModal
   } = roomState;
 
   // DOM refs
@@ -61,6 +63,7 @@ export default function Room({
   // socket/pc refs
   const socketRef = useRef<Socket | null>(null);
   const peerIdRef = useRef<string | null>(null);
+  const partnerSocketIdRef = useRef<string | null>(null);
   const sendingPcRef = useRef<RTCPeerConnection | null>(null);
   const receivingPcRef = useRef<RTCPeerConnection | null>(null);
   const joinedRef = useRef(false);
@@ -432,19 +435,36 @@ export default function Room({
     setStatus("Rechecking…");
   };
 
-  const handleReport = (reason?: string) => {
+  const handleReport = () => {
+    // Check if we have a valid roomId
+    if (!roomId) {
+      toast.error("Report failed", { description: "Not connected to a room. Please wait for connection." });
+      return;
+    }
+    
+    // Show the report modal instead of direct submission
+    setShowReportModal(true);
+  };
+
+  const handleReportSubmit = (reason: string) => {
+    if (isReporting) return; // Prevent multiple submissions
+    
     const s = socketRef.current;
     const reporter = mySocketId || s?.id || null;
-    const reported = peerIdRef.current || null;
+    // Note: Backend will resolve partner socket ID if reportedId is null or equals roomId
+    const reported = partnerSocketIdRef.current || null;
+    
     try {
       if (s && reporter) {
+        setIsReporting(true);
         s.emit("report", { reporterId: reporter, reportedId: reported, roomId, reason });
-        toast.success("Report submitted", { description: "Thank you. We received your report." });
+        // Don't show success toast here - wait for server ack
       } else {
         toast.error("Report failed", { description: "Could not submit report (no socket)." });
       }
     } catch (e) {
       console.error("report emit error", e);
+      setIsReporting(false);
       try { toast.error("Report failed", { description: "An error occurred." }); } catch {}
     }
   };
@@ -723,6 +743,25 @@ export default function Room({
       }
     });
 
+    // Report response handlers
+    s.on("report:ack", ({ ok, id, ts }: { ok: boolean; id: string; ts: number }) => {
+      setIsReporting(false);
+      setShowReportModal(false); // Close modal on success
+      if (ok) {
+        toast.success("Report submitted successfully", { 
+          description: "Thank you. We received your report and will review it." 
+        });
+      }
+    });
+
+    s.on("report:error", ({ message }: { message: string }) => {
+      setIsReporting(false);
+      // Don't close modal on error so user can try again
+      toast.error("Report failed", { 
+        description: message || "Could not submit report. Please try again." 
+      });
+    });
+
     const onBeforeUnload = () => {
       try {
         s.emit("queue:leave");
@@ -788,6 +827,8 @@ export default function Room({
       <ControlBar
         mediaState={mediaState}
         showChat={showChat}
+        isReporting={isReporting}
+        roomId={roomId}
         onToggleMic={toggleMic}
         onToggleCam={toggleCam}
         onToggleScreenShare={toggleScreenShare}
@@ -804,6 +845,13 @@ export default function Room({
         onRetry={handleRetryMatchmaking}
         onCancel={handleCancelTimeout}
         onKeyDown={handleKeyDown}
+      />
+
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        onSubmit={handleReportSubmit}
+        isSubmitting={isReporting}
       />
     </div>
   );
