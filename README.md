@@ -13,6 +13,12 @@
 </a>
 <img alt="Commit activity per month" src="https://img.shields.io/github/commit-activity/m/HXQLabs/Helixque?style=for-the-badge" />
 <img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge" />
+
+<br />
+<br />
+<a href="https://vercel.com/oss">
+  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />
+</a>
 </p>
 
 <p align="center">
@@ -22,9 +28,13 @@
     <a href="#deployment"><b>Deployment Guide</b></a>
 </p>
 
+
+
 Meet [Helixque](https://github.com/HXQLabs/Helixque), a professional real-time video chat application that pairs people based on their preferences. Built with WebRTC for secure, low-latency peer-to-peer media and Socket.IO for reliable signaling—delivering a modern experience for networking, and collaboration. 🎥
 
 > Helixque is continuously evolving. Your suggestions, ideas, and reported bugs help us immensely. Do not hesitate to join the conversation on [Discord](https://discord.gg/dQUh6SY9Uk) or raise a GitHub issue. We read everything and respond to most.
+
+
 
 
 ## Note
