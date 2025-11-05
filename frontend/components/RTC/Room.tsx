@@ -139,20 +139,12 @@ export default function Room({
     pc.ontrack = (e) => {
       if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
       if (e.track.kind === 'video') {
-        // if (!peerCamOnRef.current) return; 
-        remoteStreamRef.current.getVideoTracks().forEach(track => 
-          remoteStreamRef.current?.removeTrack(track)
-        );
-        if (peerCamOnRef.current) {
-          remoteStreamRef.current.addTrack(e.track);
-        } else {
-          ensureRemoteStreamLocal();
-          return;
-        }
+        remoteStreamRef.current.getVideoTracks().forEach(t => { try { remoteStreamRef.current?.removeTrack(t); } catch {} });
+        remoteStreamRef.current.addTrack(e.track);
       } else {
         remoteStreamRef.current.addTrack(e.track);
-      }    
-      ensureRemoteStreamLocal();
+      }
+      ensureRemoteStreamLocal();      
     };
 
     pc.onicecandidate = (e) => {
