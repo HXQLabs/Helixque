@@ -1,10 +1,15 @@
-import Image from "next/image";
-import MatchPage from "./match/page";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  return (
-        <div>
-          <MatchPage />
-        </div>
-  );
+  const router = useRouter();
+
+  useEffect(() => {
+    router.push("/prejoin");
+  }, [router]);
+
+  return null; // or a loading spinner
 }
+

@@ -21,6 +21,7 @@ const URL = process.env.NEXT_PUBLIC_BACKEND_URI || "http://localhost:5001";
 
 interface RoomProps {
   name: string;
+  roomId?: string;
   localAudioTrack: MediaStreamTrack | null;
   localVideoTrack: MediaStreamTrack | null;
   audioOn?: boolean;

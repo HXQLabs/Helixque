@@ -12,8 +12,21 @@ import {
 } from "@tabler/icons-react";
 import Tooltip from "../ui/tooltip";
 
-export default function DeviceCheck() {
-  const [name, setName] = useState("");
+interface DeviceCheckProps {
+  roomId?: string;
+  username?: string;
+  videoDeviceId?: string;
+  audioDeviceId?: string;
+}
+
+
+export default function DeviceCheck({
+  roomId,
+  username,
+  videoDeviceId,
+  audioDeviceId,
+}: DeviceCheckProps) {
+  const [name, setName] = useState(username || "");
   const [localAudioTrack, setLocalAudioTrack] = useState<MediaStreamTrack | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<MediaStreamTrack | null>(null);
   const [joined, setJoined] = useState(false);
@@ -34,7 +47,9 @@ const getCamRef = useRef<() => Promise<void>>(() => Promise.resolve());
       // request camera stream only if videoOn is true
       if (videoOn) {
         try {
-          const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+const videoStream = await navigator.mediaDevices.getUserMedia({
+  video: videoDeviceId ? { deviceId: videoDeviceId } : videoOn,
+});
           videoTrack = videoStream.getVideoTracks()[0] || null;
         } catch (err) {
           console.warn("Camera access denied or unavailable:", err);
@@ -44,7 +59,9 @@ const getCamRef = useRef<() => Promise<void>>(() => Promise.resolve());
       //  Request microphone stream only if audioOn is true
       if (audioOn) {
         try {
-          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+const audioStream = await navigator.mediaDevices.getUserMedia({
+  audio: audioDeviceId ? { deviceId: audioDeviceId } : audioOn,
+});
           audioTrack = audioStream.getAudioTracks()[0] || null;
         } catch (err) {
           console.warn("Microphone access denied or unavailable:", err);
@@ -116,6 +133,7 @@ useEffect(() => {
     return (
       <Room
         name={name}
+        roomId={roomId}
         localAudioTrack={localAudioTrack}
         localVideoTrack={localVideoTrack}
         audioOn={audioOn}

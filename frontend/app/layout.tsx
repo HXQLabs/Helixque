@@ -31,9 +31,14 @@ export const metadata: Metadata = {
     title: "Helixque",
     description: "Connect with professionals worldwide through real-time video chat platform.",
   },
-  viewport: "width=device-width, initial-scale=1",
-  robots: "index, follow",
+    robots: "index, follow",
 };
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 
 export default function RootLayout({
   children,
