@@ -7,10 +7,9 @@
 </p>
 <p align="center"><b>Professional real-time video chat with preference-based matching</b></p>
 <p align="center">
-    <a href="https://github.com/HXQLabs/Helixque/releases"><b>Releases</b></a> ✦
     <a href="https://github.com/HXQLabs/Helixque/blob/main/CONTRIBUTING.md"><b>Contributing Guidelines</b></a> ✦
-    <a href="https://github.com/HXQLabs/Helixque/blob/main/CODE_OF_CONDUCT.md"><b>Code Of Conduct</b></a> ✦
-    <a href="#deployment"><b>Deployment Guide</b></a>
+    <a href="https://github.com/HXQLabs/Helixque/releases"><b>Releases</b></a> ✦
+    <a href="https://github.com/HXQLabs/Helixque/blob/main/CODE_OF_CONDUCT.md"><b>Code Of Conduct</b></a>
 </p>
 <div align="center">
   
