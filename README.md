@@ -6,27 +6,35 @@
 </a>
 </p>
 <p align="center"><b>Professional real-time video chat with preference-based matching</b></p>
+<p align="center">
+    <a href="https://github.com/HXQLabs/Helixque/releases"><b>Releases</b></a> ✦
+    <a href="https://github.com/HXQLabs/Helixque/blob/main/CONTRIBUTING.md"><b>Contributing Guidelines</b></a> ✦
+    <a href="https://github.com/HXQLabs/Helixque/blob/main/CODE_OF_CONDUCT.md"><b>Code Of Conduct</b></a> ✦
+    <a href="#deployment"><b>Deployment Guide</b></a>
+</p>
+<div align="center">
+  
+![Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue?labelColor=black&style=for-the-badge&color=D20A2E)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?labelColor=black&logo=discord&logoColor=D20A2E&style=for-the-badge&color=D20A2E)](https://discord.gg/dQUh6SY9Uk)
+[![Website](https://img.shields.io/badge/website-HelixQue-FFF?labelColor=black&logo=globe&style=for-the-badge&color=D20A2E)](https://helixque.com)
+<br/>
+![Stars](https://img.shields.io/github/stars/HXQLabs/Helixque?labelColor=black&style=for-the-badge&color=D20A2E)&nbsp;
+![Forks](https://img.shields.io/github/forks/HXQLabs/Helixque?labelColor=black&style=for-the-badge&color=D20A2E)&nbsp;
+![Commit-Activity](https://img.shields.io/github/commit-activity/m/HXQLabs/Helixque?labelColor=black&color=D20A2E&logo=code&logoColor=D20A2E&style=for-the-badge)
+</div>
 
 <p align="center">
-<a href="https://discord.gg/dQUh6SY9Uk">
-<img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white&style=for-the-badge" />
-</a>
-<img alt="Commit activity per month" src="https://img.shields.io/github/commit-activity/m/HXQLabs/Helixque?style=for-the-badge" />
-<img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge" />
-
-<br />
-<br />
+<b>This project is backed by</b>
+<br/>
+<br/>
 <a href="https://vercel.com/oss">
   <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />
 </a>
+<br/>
+<br/>
 </p>
 
-<p align="center">
-    <a href="https://github.com/HXQLabs/Helixque"><b>GitHub</b></a> •
-    <a href="https://github.com/HXQLabs/Helixque/releases"><b>Releases</b></a> •
-    <a href="https://discord.gg/dQUh6SY9Uk"><b>Discord</b></a> •
-    <a href="#deployment"><b>Deployment Guide</b></a>
-</p>
+
 
 
 
