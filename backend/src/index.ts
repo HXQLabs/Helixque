@@ -15,6 +15,8 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, { cors: { origin: "*" } });
+// store latest media state per-socket so late joiners can be informed
+const lastMediaState = new Map<string, { micOn?: boolean; camOn?: boolean }>();
 // io.adapter(createAdapter(pubClient, subClient));
 
 const userManager = new UserManager();
@@ -73,16 +75,10 @@ io.on("connection", (socket: Socket) => {
     userManager.setRoom(socket.id, initialRoomId);
   }
 
-  // Keep UserManager in sync when client explicitly joins later
-  socket.on("chat:join", ({ roomId }: ChatJoinPayload) => {
-    try {
-      if (!roomId || typeof roomId !== "string") return;
-      const namespaced = normalizeRoom(roomId.trim());
-      // Keep UserManager in sync only; actual join + announcements are handled in chat.ts
-      userManager.setRoom(socket.id, namespaced);
-    } catch (err) {
-      console.warn("[chat:join] error", err);
-    }
+  // ⬇️ Keep UserManager in sync when client explicitly joins later
+  socket.on("chat:join", ({ roomId }: { roomId: string; name?: string }) => {
+    if (roomId) userManager.setRoom(socket.id, roomId);
+    if (roomId) socket.join(roomId);
   });
 
   // Screen share + media + renegotiation handlers (same behavior, use namespaced rooms)
@@ -120,8 +116,7 @@ io.on("connection", (socket: Socket) => {
 
   // Media state
   socket.on("media:state", ({ roomId, state }: { roomId: string; state: { micOn?: boolean; camOn?: boolean } }) => {
-    const r = toRoom(roomId);
-    if (r) socket.to(r).emit("peer:media-state", { state, from: socket.id });
+    socket.to(roomId).emit("peer:media-state", { state });
   });
 
   socket.on("media:cam", ({ roomId, on }: { roomId: string; on: boolean }) => {
@@ -164,6 +159,8 @@ io.on("connection", (socket: Socket) => {
 
     // chat.ts handles leave announcements in its disconnecting handler
 
+    // cleanup stored media state
+    lastMediaState.delete(socket.id);
     userManager.removeUser(socket.id);
   });
 

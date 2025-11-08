@@ -71,6 +71,7 @@ export default function Room({
   const currentScreenShareTrackRef = useRef<MediaStreamTrack | null>(null);
   const localScreenShareStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const peerCamOnRef = useRef<boolean>(false);
   
   // ICE candidate queues for handling candidates before remote description is set
   const senderIceCandidatesQueue = useRef<RTCIceCandidate[]>([]);
@@ -115,33 +116,35 @@ export default function Room({
       pc.addTrack(localAudioTrack);
     }
     
-    let videoTrack = currentVideoTrackRef.current;
-    if (!videoTrack || videoTrack.readyState === "ended") {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        videoTrack = stream.getVideoTracks()[0];
-        currentVideoTrackRef.current = videoTrack;
-      } catch (err) {
-        console.error("Error creating video track:", err);
-        videoTrack = null;
+    if (camOn) {
+      let videoTrack = currentVideoTrackRef.current;
+      if (!videoTrack || videoTrack.readyState === "ended") {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          videoTrack = stream.getVideoTracks()[0];
+          currentVideoTrackRef.current = videoTrack;
+        } catch (err) {
+          console.error("Error creating video track:", err);
+          videoTrack = null;
+        }
       }
-    }
-    
-    if (videoTrack && videoTrack.readyState === "live") {
-      const vs = pc.addTrack(videoTrack);
-      videoSenderRef.current = vs;
+      
+      if (videoTrack && videoTrack.readyState === "live") {
+        const vs = pc.addTrack(videoTrack);
+        videoSenderRef.current = vs;
+      }
     }
 
     ensureRemoteStreamLocal();
     pc.ontrack = (e) => {
       if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
       if (e.track.kind === 'video') {
-        remoteStreamRef.current.getVideoTracks().forEach(track => 
-          remoteStreamRef.current?.removeTrack(track)
-        );
+        remoteStreamRef.current.getVideoTracks().forEach(t => { try { remoteStreamRef.current?.removeTrack(t); } catch {} });
+        remoteStreamRef.current.addTrack(e.track);
+      } else {
+        remoteStreamRef.current.addTrack(e.track);
       }
-      remoteStreamRef.current.addTrack(e.track);
-      ensureRemoteStreamLocal();
+      ensureRemoteStreamLocal();      
     };
 
     pc.onicecandidate = (e) => {
@@ -387,6 +390,8 @@ export default function Room({
 
     teardownPeers(
       "teardown",
+      camOn,
+      micOn,
       sendingPcRef,
       receivingPcRef,
       remoteStreamRef,
@@ -456,6 +461,8 @@ export default function Room({
     
     teardownPeers(
       reason,
+      camOn,
+      micOn,
       sendingPcRef,
       receivingPcRef,
       remoteStreamRef,
@@ -541,6 +548,10 @@ export default function Room({
     socketRef.current.emit("media:state", { roomId, state: { micOn, camOn } });
   }, [micOn, camOn, roomId]);
 
+  useEffect(() => {
+    peerCamOnRef.current = peerCamOn;
+  }, [peerCamOn]);
+
   // Main socket connection effect - simplified, actual WebRTC logic would be here
   useEffect(() => {
     if (socketRef.current) return;
@@ -566,6 +577,7 @@ export default function Room({
     // ----- CALLER -----
     s.on("send-offer", async ({ roomId: rid }) => {
       setRoomId(rid);
+      s.emit("chat:join", { roomId: rid, name });
       setLobby(false);
       setStatus("Connecting…");
       
@@ -580,7 +592,11 @@ export default function Room({
           s.emit("chat:join", { roomId: rid, name });
         }, 100);
       }, 100);
-
+      try { remoteStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+      remoteStreamRef.current = new MediaStream();
+      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = null; try { remoteVideoRef.current.load(); } catch {} }
+      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+      
       const pc = new RTCPeerConnection();
       sendingPcRef.current = pc;
       peerIdRef.current = rid;
@@ -595,6 +611,7 @@ export default function Room({
     // ----- ANSWERER -----
     s.on("offer", async ({ roomId: rid, sdp: remoteSdp }) => {
       setRoomId(rid);
+      s.emit("chat:join", { roomId: rid, name });
       setLobby(false);
       setStatus("Connecting…");
       
@@ -609,6 +626,10 @@ export default function Room({
           s.emit("chat:join", { roomId: rid, name });
         }, 100);
       }, 100);
+      try { remoteStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+      remoteStreamRef.current = new MediaStream();
+      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = null; try { remoteVideoRef.current.load(); } catch {} }
+      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
 
       const pc = new RTCPeerConnection();
       receivingPcRef.current = pc;

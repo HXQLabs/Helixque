@@ -117,6 +117,8 @@ export function stopProvidedTracks(
 
 export function teardownPeers(
   reason: string,
+  camOn: boolean,
+  micOn: boolean,
   sendingPcRef: React.RefObject<RTCPeerConnection | null>,
   receivingPcRef: React.RefObject<RTCPeerConnection | null>,
   remoteStreamRef: React.RefObject<MediaStream | null>,
@@ -206,8 +208,8 @@ export function teardownPeers(
 
   // Reset UI states
   setters.setShowChat(false);
-  setters.setPeerMicOn(true);
-  setters.setPeerCamOn(true);
+  setters.setPeerMicOn(micOn);
+  setters.setPeerCamOn(camOn);
   setters.setScreenShareOn(false);
   setters.setPeerScreenShareOn(false);
 
@@ -270,23 +272,34 @@ export async function toggleCameraTrack(
       }
 
       if (videoSenderRef.current) {
-        await videoSenderRef.current.replaceTrack(track);
+        try {
+          await videoSenderRef.current.replaceTrack(track);
+        } catch (err) {
+          try {
+            pc?.getSenders().forEach(s => { if (s.track?.kind === 'video') try { pc.removeTrack(s); } catch {} });
+          } catch {}
+          const sender = pc?.addTrack(track) || null;
+          if (sender) videoSenderRef.current = sender;
+        }
       } else if (pc) {
         const sender = pc.addTrack(track);
         videoSenderRef.current = sender;
-        // console.log("Added new video track to existing connection");
-        
-        if (sendingPcRef.current === pc) {
+      }
+      
+      try { socketRef.current?.emit("media:cam", { roomId, on: true }); } catch {}
+      try {
+        if (pc) {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          socketRef.current?.emit("renegotiate-offer", { 
-            roomId, 
-            sdp: offer, 
-            role: "caller" 
+          socketRef.current?.emit("renegotiate-offer", {
+            roomId,
+            sdp: offer,
+            role: sendingPcRef.current === pc ? "caller" : "answerer"
           });
-          // console.log("📤 Sent renegotiation offer for camera turn on");
         }
-      }
+      } catch (err) {
+        console.warn("renegotiation failed:", err);
+      }      
     } else {
       if (videoSenderRef.current) {
         await videoSenderRef.current.replaceTrack(null);
