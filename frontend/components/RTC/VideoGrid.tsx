@@ -30,6 +30,7 @@ interface VideoGridProps {
   name: string;
   mediaState: MediaState;
   peerState: PeerState;
+  avatar?: string | null;
 }
 
 export default function VideoGrid({ 
@@ -42,7 +43,8 @@ export default function VideoGrid({
   status, 
   name, 
   mediaState, 
-  peerState 
+  peerState,
+  avatar, 
 }: VideoGridProps) {
   const { micOn, camOn, screenShareOn } = mediaState;
   const { peerMicOn, peerCamOn, peerScreenShareOn } = peerState;
@@ -52,23 +54,29 @@ export default function VideoGrid({
       <div className="flex flex-col h-full gap-4">
         {/* Top: Two small videos side by side */}
         <div className="flex gap-4 justify-center">
-          {/* My Video */}
+         {/* My Video */}
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.5)] w-64 aspect-video">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-            {!camOn && (
+            {camOn ? (
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : avatar ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black"> 
+              <img
+                src={avatar}
+                alt="Avatar"
+                className="h-24 w-24 rounded-full object-cover"
+              />
+              </div>
+            ) : (
               <div className="absolute inset-0 flex items-center justify-center bg-black">
                 <IconUser className="h-8 w-8 text-white/70" />
               </div>
             )}
-            <div className="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-1 text-xs">
-              <span>{name || "You"}</span>
-            </div>
           </div>
 
           {/* Peer Video */}
@@ -179,29 +187,31 @@ export default function VideoGrid({
         </div>
       </div>
 
-      {/* Local/Your Video */}
-      <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.5)] ${
-        showChat ? 'aspect-[4/3] max-w-2xl mx-auto' : ''
-      }`}>
-        <div className={`relative w-full ${
-          showChat ? 'h-full' : 'h-full min-h-0'
-        }`}>
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className={`absolute inset-0 h-full w-full ${
-              showChat ? 'object-cover' : 'object-cover'
-            }`}
-          />
-          
-          {!camOn && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black">
-              <IconUser className="h-12 w-12 text-white/70" />
-            </div>
-          )}
-          
+        {/* Local/Your Video */}
+        <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.5)] ${showChat ? 'aspect-[4/3] max-w-2xl mx-auto' : ''}`}>
+          <div className={`relative w-full ${showChat ? 'h-full' : 'h-full min-h-0'}`}>
+            {camOn ? (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            ) : avatar ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black">
+              <img
+                src={avatar}
+                alt="Avatar"
+                className="h-24 w-24 rounded-full object-cover"
+              />
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center bg-black">
+                <IconUser className="h-12 w-12 text-white/70" />
+              </div>
+            )}
+
           {/* Local label with indicators */}
           <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md bg-black/60 px-2 py-1 text-xs">
             <span>{name || "You"}</span>
