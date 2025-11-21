@@ -1,6 +1,6 @@
 // server/chat.ts
 import type { Server, Socket } from "socket.io";
-
+import escapeHtml from "escape-html"; // npm install escape-html
 // --- Simple in-memory per-room history ---
 type HistItem = {
   text: string;
@@ -72,8 +72,11 @@ export function wireChat(io: Server, socket: Socket) {
   // Broadcast a message to everyone in the chat room
   socket.on("chat:message", (payload: ChatMessagePayload) => {
     const { roomId, text, from, clientId, ts } = payload || {};
-    const safeText = (text || "").toString().trim().slice(0, 1000); 
-    if (!roomId || !safeText) return;
+     
+    if (!roomId || !text || !from) return;
+    let safeText = text.toString().trim();
+    safeText = safeText.slice(0, 1000);
+    safeText = escapeHtml(safeText);
 
     const final = {
       text: safeText,
